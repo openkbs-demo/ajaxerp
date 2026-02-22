@@ -1,0 +1,20 @@
+{
+  "name": "1yxyqmotpavb",
+  "kbId": "1yxyqmotpavb",
+  "region": "eu-central-1",
+  "spa": "/app/index.html",
+  "postgres": true,
+  "storage": {
+    "cloudfront": "media"
+  },
+  "pulse": true,
+  "functions": [
+    {
+      "name": "api",
+      "runtime": "nodejs24.x",
+      "memory": 512,
+      "timeout": 30
+    }
+  ],
+  "site": "./site"
+}

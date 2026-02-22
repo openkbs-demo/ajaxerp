@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{APP_NAME}}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            background: white;
+            padding: 3rem;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            text-align: center;
+            max-width: 500px;
+        }
+        h1 { color: #333; margin-bottom: 1rem; }
+        p { color: #666; margin-bottom: 2rem; line-height: 1.6; }
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn:hover { opacity: 0.9; }
+        pre {
+            margin-top: 2rem;
+            text-align: left;
+            background: #f5f5f5;
+            padding: 1rem;
+            border-radius: 8px;
+            display: none;
+            overflow: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>{{APP_NAME}}</h1>
+        <p>Your OpenKBS platform is ready.</p>
+        <button class="btn" onclick="testAPI()">Test API</button>
+        <pre id="result"></pre>
+    </div>
+    <script>
+        async function testAPI() {
+            const result = document.getElementById('result');
+            result.style.display = 'block';
+            result.textContent = 'Loading...';
+            try {
+                const res = await fetch('/api', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'hello' })
+                });
+                result.textContent = JSON.stringify(await res.json(), null, 2);
+            } catch (e) {
+                result.textContent = 'Error: ' + e.message;
+            }
+        }
+    </script>
+</body>
+</html>
