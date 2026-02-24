@@ -28,7 +28,7 @@ export default function Layout() {
           <small>6 500 майки DanBred</small>
         </div>
         <nav className="sidebar-nav" onClick={() => setSidebarOpen(false)}>
-          <NavLink to="/" end>&#128202; Табло</NavLink>
+          <NavLink to="/dashboard" end>&#128202; Табло</NavLink>
           <NavLink to="/animals">&#128055; Животни</NavLink>
           <NavLink to="/events">&#128221; Събития</NavLink>
           <NavLink to="/feed">&#127806; Фуражи</NavLink>

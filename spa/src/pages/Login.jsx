@@ -22,7 +22,7 @@ export default function Login() {
       const data = isRegister ? { name, email, password } : { email, password }
       const res = await api(action, data)
       login(res.user)
-      navigate('/')
+      navigate('/dashboard')
     } catch (err) {
       setError(err.message)
     } finally {

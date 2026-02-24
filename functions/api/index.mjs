@@ -155,6 +155,13 @@ export async function handler(event) {
 
     // ─── SEED ─────────────────────────────────────────────────────────
     if (action === 'seed') return await seedData(db);
+    if (action === 'reset') {
+      const tables = await db.query(`SELECT tablename FROM pg_tables WHERE schemaname = 'public'`);
+      for (const t of tables.rows) await db.query(`DROP TABLE IF EXISTS "${t.tablename}" CASCADE`);
+      const { resetDB } = await import('./db.mjs');
+      resetDB();
+      return ok({ message: `Dropped ${tables.rows.length} tables. Call seed to recreate.` });
+    }
 
     // ─── DASHBOARD BUNDLE ─────────────────────────────────────────────
     if (action === 'dashboard') return await dashboardBundle(db);
@@ -311,12 +318,20 @@ export async function handler(event) {
 // AUTH
 // ═══════════════════════════════════════════════════════════════════════════
 
+const ALLOWED_EMAIL_DOMAINS = ['@ajaxgroup.bg', '@openkbs.com'];
+const WHITELISTED_EMAILS = ['khristov3@gmail.com'];
+
 async function authRegister(db, { name, email, password, role, phone, hire_date }) {
   if (!name || !email || !password) return err(400, 'Име, email и парола са задължителни');
+  const emailLower = email.toLowerCase().trim();
+  const domainAllowed = ALLOWED_EMAIL_DOMAINS.some(d => emailLower.endsWith(d));
+  if (!domainAllowed && !WHITELISTED_EMAILS.includes(emailLower)) {
+    return err(400, 'Този email не е разрешен за регистрация');
+  }
   const validRoles = ['admin', 'manager', 'veterinarian', 'breeding_technician', 'feed_operator', 'farm_worker', 'driver'];
   const userRole = validRoles.includes(role) ? role : 'farm_worker';
 
-  const existing = await db.query('SELECT id FROM personnel WHERE email = $1', [email]);
+  const existing = await db.query('SELECT id FROM personnel WHERE email = $1', [emailLower]);
   if (existing.rows.length > 0) return err(400, 'Този email вече е регистриран');
 
   const salt = generateSalt();
@@ -327,7 +342,7 @@ async function authRegister(db, { name, email, password, role, phone, hire_date 
     `INSERT INTO personnel (name, email, password_hash, salt, role, phone, hire_date, private_channel)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING id, name, email, role, phone, hire_date, private_channel, created_at`,
-    [name, email, passwordHash, salt, userRole, phone || null, hire_date || null, privateChannel]
+    [name, emailLower, passwordHash, salt, userRole, phone || null, hire_date || null, privateChannel]
   );
   const user = result.rows[0];
   const pulseData = await getPulseToken(user.id);
@@ -345,10 +360,11 @@ async function authRegister(db, { name, email, password, role, phone, hire_date 
 
 async function authLogin(db, { email, password }) {
   if (!email || !password) return err(400, 'Email и парола са задължителни');
+  const emailLower = email.toLowerCase().trim();
 
   const result = await db.query(
     'SELECT id, name, email, password_hash, salt, role, phone, hire_date, private_channel FROM personnel WHERE email = $1 AND is_active = true',
-    [email]
+    [emailLower]
   );
   if (result.rows.length === 0) return err(401, 'Невалиден email или парола');
 

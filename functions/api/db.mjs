@@ -14,6 +14,12 @@ export async function getDB() {
   return db;
 }
 
+export function resetDB() {
+  dbConnected = false;
+  if (db) { try { db.end(); } catch {} }
+  db = null;
+}
+
 async function runMigrations(db) {
   // Sectors
   await db.query(`
