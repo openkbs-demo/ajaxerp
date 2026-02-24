@@ -138,6 +138,7 @@ export async function handler(event) {
     if (action === 'feed.components.upsert') return await feedComponentsUpsert(db, body);
     if (action === 'feed.recipes.list') return await feedRecipesList(db);
     if (action === 'feed.recipes.get') return await feedRecipesGet(db, body);
+    if (action === 'feed.recipes.upsert') return await feedRecipesUpsert(db, body);
     if (action === 'feed.updatePrice') return await feedUpdatePrice(db, body);
     if (action === 'feed.produce') return await feedProduce(db, body);
     if (action === 'feed.inventory') return await feedInventory(db);
@@ -1003,6 +1004,44 @@ async function feedRecipesGet(db, { id }) {
     [id]
   );
   return ok({ recipe: result.rows[0], components: comps.rows });
+}
+
+async function feedRecipesUpsert(db, { id, name, name_bg, target_category, shrinkage_pct, components }) {
+  if (!name) return err(400, 'Име на рецептата е задължително');
+  if (!components || !Array.isArray(components) || components.length === 0) return err(400, 'Компоненти са задължителни');
+
+  // Validate total percentage
+  const totalPct = components.reduce((s, c) => s + parseFloat(c.percentage || 0), 0);
+  if (Math.abs(totalPct - 100) > 0.5) return err(400, `Общият процент е ${totalPct.toFixed(1)}% — трябва да е 100%`);
+
+  let recipeId;
+  if (id) {
+    await db.query(
+      `UPDATE feed_recipes SET name = $1, name_bg = $2, target_category = $3, shrinkage_pct = $4, updated_at = NOW() WHERE id = $5`,
+      [name, name_bg || null, target_category || null, shrinkage_pct ?? 0.5, id]
+    );
+    recipeId = id;
+    await db.query('DELETE FROM feed_recipe_components WHERE recipe_id = $1', [recipeId]);
+  } else {
+    const res = await db.query(
+      `INSERT INTO feed_recipes (name, name_bg, target_category, shrinkage_pct) VALUES ($1, $2, $3, $4) RETURNING id`,
+      [name, name_bg || null, target_category || null, shrinkage_pct ?? 0.5]
+    );
+    recipeId = res.rows[0].id;
+  }
+
+  for (const c of components) {
+    if (c.component_id && c.percentage > 0) {
+      await db.query(
+        `INSERT INTO feed_recipe_components (recipe_id, component_id, percentage) VALUES ($1, $2, $3)
+         ON CONFLICT (recipe_id, component_id) DO UPDATE SET percentage = $3`,
+        [recipeId, c.component_id, c.percentage]
+      );
+    }
+  }
+
+  await recalculateSingleRecipeCost(db, recipeId);
+  return ok({ message: id ? 'Рецептата е обновена' : 'Рецептата е създадена', recipe_id: recipeId });
 }
 
 async function feedUpdatePrice(db, { component_id, price_per_ton }) {
