@@ -2081,12 +2081,44 @@ async function seedData(db) {
       [sow.id, sow.hall_id, vet, eventDate, JSON.stringify({ born_alive: bornAlive, stillborn, mummified, duration_hours: (Math.random() * 4 + 2).toFixed(1) })]
     );
     if (fRes.rows[0]) {
+      // Simulate weaning for litters older than 10 days (piglets weaned at ~21-28 days)
+      const weanedCount = daysAgo >= 10 ? bornAlive - Math.floor(Math.random() * 2) : null;
+      const weaningDate = daysAgo >= 10 ? new Date(now - (daysAgo - 10) * day).toISOString().split('T')[0] : null;
+      const weaningWeightKg = weanedCount ? Math.round(weanedCount * (5.5 + Math.random() * 1.5) * 100) / 100 : null;
       const lRes = await db.query(
-        `INSERT INTO litters (birth_sow_id, farrowing_event_id, parity_number, born_alive, stillborn, mummified, birth_date)
-         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-        [sow.id, fRes.rows[0].id, sow.parity, bornAlive, stillborn, mummified, eventDate]
+        `INSERT INTO litters (birth_sow_id, farrowing_event_id, parity_number, born_alive, stillborn, mummified, birth_date, weaned_count, weaning_date, weaning_weight_kg)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+        [sow.id, fRes.rows[0].id, sow.parity, bornAlive, stillborn, mummified, eventDate, weanedCount, weaningDate, weaningWeightKg]
       );
       if (lRes.rows[0]) litterIds.push(lRes.rows[0].id);
+    }
+  }
+
+  // ─── Historical litters for prior months (Nov 2025 - Jan 2026) for bonus calc ─
+  const historicalMonths = [
+    { month: '2025-11', daysAgoBase: 100 },
+    { month: '2025-12', daysAgoBase: 70 },
+    { month: '2026-01', daysAgoBase: 40 }
+  ];
+  const weanedRestSows = allSowIds.filter(s => s.status === 'weaned_resting');
+  const pregConfSows = allSowIds.filter(s => s.status === 'pregnant_confirmed');
+  const historicalSows = [...weanedRestSows, ...pregConfSows.slice(0, 15)];
+  for (const hm of historicalMonths) {
+    const sowsForMonth = historicalSows.slice(0, 8);
+    for (let si = 0; si < sowsForMonth.length; si++) {
+      const sow = sowsForMonth[si];
+      const daysAgo = hm.daysAgoBase + si;
+      const birthDate = new Date(now - daysAgo * day).toISOString().split('T')[0];
+      const weanDate = new Date(now - (daysAgo - 25) * day).toISOString().split('T')[0];
+      const vet = vetIds[si % vetIds.length];
+      const bornAlive = Math.floor(Math.random() * 5) + 11;
+      const weanedCount = bornAlive - Math.floor(Math.random() * 2);
+      const weaningWeightKg = Math.round(weanedCount * (5.8 + Math.random() * 1.2) * 100) / 100;
+      await db.query(
+        `INSERT INTO litters (birth_sow_id, parity_number, born_alive, stillborn, mummified, birth_date, weaned_count, weaning_date, weaning_weight_kg)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [sow.id, sow.parity, bornAlive, Math.floor(Math.random() * 2), Math.floor(Math.random() * 2), birthDate, weanedCount, weanDate, weaningWeightKg]
+      );
     }
   }
 
@@ -4443,7 +4475,7 @@ async function bonusCalculate(db, { month_key }) {
       `, [monthStart, monthEnd]);
       if (wRes.rows[0].avg_weight) kpiValue = Math.round(parseFloat(wRes.rows[0].avg_weight) * 100) / 100;
     } else if (rule.kpi_name === 'fcr_finishing') {
-      const fcrRes = await db.query(`SELECT kpi_value FROM kpi_snapshots WHERE kpi_name = 'fcr' AND snapshot_date >= $1 AND snapshot_date < $2 ORDER BY snapshot_date DESC LIMIT 1`, [monthStart, monthEnd]);
+      const fcrRes = await db.query(`SELECT kpi_value FROM kpi_snapshots WHERE kpi_name = 'fcr_finishing' AND snapshot_date >= $1 AND snapshot_date < $2 ORDER BY snapshot_date DESC LIMIT 1`, [monthStart, monthEnd]);
       if (fcrRes.rows.length > 0) kpiValue = parseFloat(fcrRes.rows[0].kpi_value);
     }
 
