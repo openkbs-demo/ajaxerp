@@ -30,18 +30,6 @@ export default function Login() {
     }
   }
 
-  const handleSeed = async () => {
-    setLoading(true)
-    try {
-      const res = await api('seed')
-      alert(res.message)
-    } catch (err) {
-      alert('Грешка: ' + err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   return (
     <div className="login-page">
       <div className="login-card">
@@ -71,11 +59,6 @@ export default function Login() {
           <button onClick={() => { setIsRegister(!isRegister); setError('') }}
             style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: 13 }}>
             {isRegister ? 'Вече имам акаунт' : 'Нямам акаунт - Регистрация'}
-          </button>
-        </div>
-        <div style={{ textAlign: 'center', marginTop: 24, borderTop: '1px solid var(--border)', paddingTop: 16 }}>
-          <button onClick={handleSeed} className="btn btn-outline btn-sm" disabled={loading}>
-            Зареди начални данни (Seed)
           </button>
         </div>
       </div>

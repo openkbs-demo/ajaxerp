@@ -45,6 +45,7 @@ export default function Layout() {
           <NavLink to="/biosecurity">&#128737; Биосигурност</NavLink>
           <NavLink to="/bonuses">&#127942; Бонуси</NavLink>
           <NavLink to="/traceability">&#128269; Проследимост</NavLink>
+          <NavLink to="/settings">&#9881; Настройки</NavLink>
         </nav>
         <div className="sidebar-user">
           <div className="user-name">{user?.name}</div>

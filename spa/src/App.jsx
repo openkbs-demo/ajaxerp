@@ -18,6 +18,7 @@ import Dispatch from './pages/Dispatch.jsx'
 import Biosecurity from './pages/Biosecurity.jsx'
 import Bonuses from './pages/Bonuses.jsx'
 import Traceability from './pages/Traceability.jsx'
+import Settings from './pages/Settings.jsx'
 
 function PrivateRoute({ children }) {
   const { user } = useAuth()
@@ -46,6 +47,7 @@ export default function App() {
         <Route path="biosecurity" element={<Biosecurity />} />
         <Route path="bonuses" element={<Bonuses />} />
         <Route path="traceability" element={<Traceability />} />
+        <Route path="settings" element={<Settings />} />
       </Route>
     </Routes>
   )
