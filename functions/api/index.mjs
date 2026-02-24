@@ -164,6 +164,9 @@ export async function handler(event) {
 
     // ─── PERSONNEL ────────────────────────────────────────────────────
     if (action === 'personnel.list') return await personnelList(db, body);
+    if (action === 'personnel.create') return await personnelCreate(db, body);
+    if (action === 'personnel.update') return await personnelUpdate(db, body);
+    if (action === 'personnel.resetPassword') return await personnelResetPassword(db, body);
 
     // ═════════════════════════════════════════════════════════════════
     // PHASE 2: FINANCE & REPORTS
@@ -325,7 +328,7 @@ export async function handler(event) {
 // AUTH
 // ═══════════════════════════════════════════════════════════════════════════
 
-const ALLOWED_EMAIL_DOMAINS = ['@ajaxgroup.bg', '@openkbs.com'];
+const ALLOWED_EMAIL_DOMAINS = ['@ajaxgroup.bg', '@openkbs.com', '@ajaxerp.com'];
 const WHITELISTED_EMAILS = ['khristov3@gmail.com'];
 
 async function authRegister(db, { name, email, password, role, phone, hire_date }) {
@@ -414,6 +417,54 @@ async function personnelList(db, { role }) {
   q += ' ORDER BY name';
   const result = await db.query(q, params);
   return ok({ personnel: result.rows });
+}
+
+async function personnelCreate(db, { name, email, password, role, phone, hire_date }) {
+  if (!name || !email || !password) return err(400, 'Име, email и парола са задължителни');
+  const validRoles = ['admin', 'production_manager', 'zooeng', 'farm_worker', 'driver', 'cleaner'];
+  const userRole = validRoles.includes(role) ? role : 'farm_worker';
+  const emailLower = email.toLowerCase().trim();
+  const existing = await db.query('SELECT id FROM personnel WHERE email = $1', [emailLower]);
+  if (existing.rows.length > 0) return err(400, 'Този email вече е регистриран');
+  const salt = generateSalt();
+  const hash = await hashPassword(password, salt);
+  const result = await db.query(
+    `INSERT INTO personnel (name, email, password_hash, salt, role, phone, hire_date, private_channel)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, name, email, role, phone, hire_date, is_active`,
+    [name, emailLower, hash, salt, userRole, phone || null, hire_date || null, generateChannel()]
+  );
+  return ok({ user: result.rows[0] });
+}
+
+async function personnelUpdate(db, { id, name, email, role, phone, hire_date, is_active }) {
+  if (!id) return err(400, 'ID е задължително');
+  const existing = await db.query('SELECT * FROM personnel WHERE id = $1', [id]);
+  if (existing.rows.length === 0) return err(404, 'Потребителят не е намерен');
+  const validRoles = ['admin', 'production_manager', 'zooeng', 'farm_worker', 'driver', 'cleaner'];
+  const fields = []; const params = []; let idx = 1;
+  if (name !== undefined) { fields.push(`name = $${idx++}`); params.push(name); }
+  if (email !== undefined) { fields.push(`email = $${idx++}`); params.push(email.toLowerCase().trim()); }
+  if (role !== undefined && validRoles.includes(role)) { fields.push(`role = $${idx++}`); params.push(role); }
+  if (phone !== undefined) { fields.push(`phone = $${idx++}`); params.push(phone); }
+  if (hire_date !== undefined) { fields.push(`hire_date = $${idx++}`); params.push(hire_date); }
+  if (is_active !== undefined) { fields.push(`is_active = $${idx++}`); params.push(is_active); }
+  if (fields.length === 0) return err(400, 'Няма полета за обновяване');
+  params.push(id);
+  const result = await db.query(
+    `UPDATE personnel SET ${fields.join(', ')} WHERE id = $${idx} RETURNING id, name, email, role, phone, hire_date, is_active`,
+    params
+  );
+  return ok({ user: result.rows[0] });
+}
+
+async function personnelResetPassword(db, { id, new_password }) {
+  if (!id || !new_password) return err(400, 'ID и нова парола са задължителни');
+  const existing = await db.query('SELECT id FROM personnel WHERE id = $1', [id]);
+  if (existing.rows.length === 0) return err(404, 'Потребителят не е намерен');
+  const salt = generateSalt();
+  const hash = await hashPassword(new_password, salt);
+  await db.query('UPDATE personnel SET password_hash = $1, salt = $2 WHERE id = $3', [hash, salt, id]);
+  return ok({ message: 'Паролата е сменена успешно' });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1699,7 +1750,7 @@ async function seedData(db) {
   await db.query(
     `INSERT INTO personnel (name, email, password_hash, salt, role, private_channel)
      VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (email) DO NOTHING`,
-    ['Администратор', 'admin@pigtech.bg', hash, salt, 'admin', generateChannel()]
+    ['Администратор', 'admin@ajaxerp.com', hash, salt, 'admin', generateChannel()]
   );
 
   // Seed salary templates (per spec: Организатор, Зооинженер, Животновъд, Шофьор, Чистач)
@@ -1750,7 +1801,7 @@ async function seedData(db) {
   for (let i = 0; i < driverNames.length; i++) {
     const dSalt = generateSalt();
     const dHash = await hashPassword('driver123', dSalt);
-    const dEmail = `driver${i + 1}@pigtech.bg`;
+    const dEmail = `driver${i + 1}@ajaxerp.com`;
     const dRes = await db.query(
       `INSERT INTO personnel (name, email, password_hash, salt, role, private_channel)
        VALUES ($1, $2, $3, $4, 'driver', $5) ON CONFLICT (email) DO NOTHING RETURNING id`,
@@ -1838,7 +1889,7 @@ async function seedData(db) {
   }
 
   // Seed sample access logs (admin accessing different halls)
-  const adminRes = await db.query("SELECT id FROM personnel WHERE email = 'admin@pigtech.bg'");
+  const adminRes = await db.query("SELECT id FROM personnel WHERE email = 'admin@ajaxerp.com'");
   const adminId = adminRes.rows[0]?.id;
   if (adminId && allHalls.rows.length > 0) {
     for (let i = 0; i < Math.min(5, allHalls.rows.length); i++) {
@@ -1869,31 +1920,31 @@ async function seedData(db) {
   // ─── Rich seed data: Personnel across all roles ─────────────────────
   const personnelSeed = [
     // Production Managers (Организатори производство)
-    { name: 'Мария Иванова', email: 'maria@pigtech.bg', role: 'production_manager' },
-    { name: 'Васил Колев', email: 'vasil.k@pigtech.bg', role: 'production_manager' },
-    { name: 'Елена Георгиева', email: 'elena@pigtech.bg', role: 'production_manager' },
+    { name: 'Мария Иванова', email: 'maria@ajaxerp.com', role: 'production_manager' },
+    { name: 'Васил Колев', email: 'vasil.k@ajaxerp.com', role: 'production_manager' },
+    { name: 'Елена Георгиева', email: 'elena@ajaxerp.com', role: 'production_manager' },
     // Zoo-engineers / Vets (Зооинженери / Лекари)
-    { name: 'Д-р Калина Петрова', email: 'kalina@pigtech.bg', role: 'zooeng' },
-    { name: 'Д-р Пламен Стефанов', email: 'plamen@pigtech.bg', role: 'zooeng' },
-    { name: 'Д-р Росица Вълчева', email: 'rosica@pigtech.bg', role: 'zooeng' },
+    { name: 'Д-р Калина Петрова', email: 'kalina@ajaxerp.com', role: 'zooeng' },
+    { name: 'Д-р Пламен Стефанов', email: 'plamen@ajaxerp.com', role: 'zooeng' },
+    { name: 'Д-р Росица Вълчева', email: 'rosica@ajaxerp.com', role: 'zooeng' },
     // Farm workers (Животновъди)
-    { name: 'Тодор Михайлов', email: 'todor@pigtech.bg', role: 'farm_worker' },
-    { name: 'Ангел Христов', email: 'angel@pigtech.bg', role: 'farm_worker' },
-    { name: 'Красимир Янков', email: 'krasimir@pigtech.bg', role: 'farm_worker' },
-    { name: 'Йордан Димов', email: 'yordan@pigtech.bg', role: 'farm_worker' },
-    { name: 'Борис Славов', email: 'boris@pigtech.bg', role: 'farm_worker' },
-    { name: 'Светла Маринова', email: 'svetla@pigtech.bg', role: 'farm_worker' },
-    { name: 'Деница Радева', email: 'denica@pigtech.bg', role: 'farm_worker' },
-    { name: 'Румен Кирилов', email: 'rumen@pigtech.bg', role: 'farm_worker' },
-    { name: 'Мирослав Тончев', email: 'miroslav@pigtech.bg', role: 'farm_worker' },
-    { name: 'Стефан Илиев', email: 'stefan@pigtech.bg', role: 'farm_worker' },
-    { name: 'Галина Добрева', email: 'galina@pigtech.bg', role: 'farm_worker' },
-    { name: 'Валентин Стоянов', email: 'valentin@pigtech.bg', role: 'farm_worker' },
+    { name: 'Тодор Михайлов', email: 'todor@ajaxerp.com', role: 'farm_worker' },
+    { name: 'Ангел Христов', email: 'angel@ajaxerp.com', role: 'farm_worker' },
+    { name: 'Красимир Янков', email: 'krasimir@ajaxerp.com', role: 'farm_worker' },
+    { name: 'Йордан Димов', email: 'yordan@ajaxerp.com', role: 'farm_worker' },
+    { name: 'Борис Славов', email: 'boris@ajaxerp.com', role: 'farm_worker' },
+    { name: 'Светла Маринова', email: 'svetla@ajaxerp.com', role: 'farm_worker' },
+    { name: 'Деница Радева', email: 'denica@ajaxerp.com', role: 'farm_worker' },
+    { name: 'Румен Кирилов', email: 'rumen@ajaxerp.com', role: 'farm_worker' },
+    { name: 'Мирослав Тончев', email: 'miroslav@ajaxerp.com', role: 'farm_worker' },
+    { name: 'Стефан Илиев', email: 'stefan@ajaxerp.com', role: 'farm_worker' },
+    { name: 'Галина Добрева', email: 'galina@ajaxerp.com', role: 'farm_worker' },
+    { name: 'Валентин Стоянов', email: 'valentin@ajaxerp.com', role: 'farm_worker' },
     // Cleaners (Чистачи / Общи работници)
-    { name: 'Пенка Атанасова', email: 'penka@pigtech.bg', role: 'cleaner' },
-    { name: 'Цветана Бойчева', email: 'cvetana@pigtech.bg', role: 'cleaner' },
-    { name: 'Радка Николова', email: 'radka@pigtech.bg', role: 'cleaner' },
-    { name: 'Милка Василева', email: 'milka@pigtech.bg', role: 'cleaner' }
+    { name: 'Пенка Атанасова', email: 'penka@ajaxerp.com', role: 'cleaner' },
+    { name: 'Цветана Бойчева', email: 'cvetana@ajaxerp.com', role: 'cleaner' },
+    { name: 'Радка Николова', email: 'radka@ajaxerp.com', role: 'cleaner' },
+    { name: 'Милка Василева', email: 'milka@ajaxerp.com', role: 'cleaner' }
   ];
   const personnelIds = {};
   for (const p of personnelSeed) {
@@ -2195,7 +2246,7 @@ async function seedData(db) {
     );
   }
 
-  return ok({ message: 'Seed data заредени: 5 сектора, 25 халета, 15 суровини, 4 рецепти, 6 шаблона заплати, 10 медикамента, 10 карентни правила, 3 бонус правила, 7 шофьори + 22 персонал (всички роли), 8 МПС, 25 силоза, 110 свине майки + 5 нерези, 8 партиди животни, 8 продажби, 40 разходи, 240 водни отчети, 40 KPI, 5 P&L, 1 admin (admin@pigtech.bg / admin123)' });
+  return ok({ message: 'Seed data заредени: 5 сектора, 25 халета, 15 суровини, 4 рецепти, 6 шаблона заплати, 10 медикамента, 10 карентни правила, 3 бонус правила, 7 шофьори + 22 персонал (всички роли), 8 МПС, 25 силоза, 110 свине майки + 5 нерези, 8 партиди животни, 8 продажби, 40 разходи, 240 водни отчети, 40 KPI, 5 P&L, 1 admin (admin@ajaxerp.com / admin123)' });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -3182,7 +3233,7 @@ async function exportExcel(db, { report_type, params: reportParams }) {
     }
 
     const csv = '\uFEFF' + rows.join('\n'); // BOM for UTF-8 in Excel
-    const fileName = `pigtech_${report_type}_${new Date().toISOString().split('T')[0]}.csv`;
+    const fileName = `ajaxerp_${report_type}_${new Date().toISOString().split('T')[0]}.csv`;
 
     // Upload to S3 if available
     const s3Bucket = process.env.OPENKBS_STORAGE_BUCKET;

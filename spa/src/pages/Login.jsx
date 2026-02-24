@@ -45,7 +45,7 @@ export default function Login() {
           )}
           <div className="form-group">
             <label>Email</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="email@pigtech.bg" required />
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="email@ajaxerp.com" required />
           </div>
           <div className="form-group">
             <label>Парола</label>
