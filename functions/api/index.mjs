@@ -1551,11 +1551,11 @@ async function dashboardBundle(db) {
   // Phase 4: Biosecurity summary
   let biosecurity = { violationsToday: 0, activeWithdrawals: 0, hallsInHygiene: 0 };
   try {
-    const violToday = await db.query(`SELECT COUNT(*) FROM biosecurity_violations WHERE created_at >= CURRENT_DATE AND status = 'open'`);
+    const violToday = await db.query(`SELECT COUNT(*) FROM biosecurity_violations WHERE created_at >= CURRENT_DATE AND is_resolved = false`);
     biosecurity.violationsToday = parseInt(violToday.rows[0].count);
-    const actWd = await db.query(`SELECT COUNT(*) FROM active_withdrawals WHERE status = 'active' AND end_date > CURRENT_DATE`);
+    const actWd = await db.query(`SELECT COUNT(*) FROM active_withdrawals WHERE status = 'active' AND end_date >= CURRENT_DATE`);
     biosecurity.activeWithdrawals = parseInt(actWd.rows[0].count);
-    const hyg = await db.query(`SELECT COUNT(*) FROM hall_hygiene_pauses WHERE status IN ('started', 'cleaning', 'disinfection')`);
+    const hyg = await db.query(`SELECT COUNT(*) FROM hall_hygiene_pauses WHERE status NOT IN ('ready', 'cancelled')`);
     biosecurity.hallsInHygiene = parseInt(hyg.rows[0].count);
   } catch {}
 
@@ -2246,7 +2246,295 @@ async function seedData(db) {
     );
   }
 
-  return ok({ message: 'Seed data заредени: 5 сектора, 25 халета, 15 суровини, 4 рецепти, 6 шаблона заплати, 10 медикамента, 10 карентни правила, 3 бонус правила, 7 шофьори + 22 персонал (всички роли), 8 МПС, 25 силоза, 110 свине майки + 5 нерези, 8 партиди животни, 8 продажби, 40 разходи, 240 водни отчети, 40 KPI, 5 P&L, 1 admin (admin@ajaxerp.com / admin123)' });
+  // ─── Alerts: sample alerts for demo ──────────────────────────────
+  const alertsData = [
+    { severity: 'critical', category: 'water', message: 'Спад на водна консумация >15% в РОД-3 за последните 24ч — възможен PRRS/грип', entity_type: 'hall', entity_id: farHalls[2]?.id, threshold: 'water_drop_pct', thresholdVal: 18.5, targetVal: 15 },
+    { severity: 'critical', category: 'mortality', message: 'Смъртност >12% в първите 48ч в РОД-1 — проверете микроклимат и колострум', entity_type: 'hall', entity_id: farHalls[0]?.id, threshold: 'mortality_48h_pct', thresholdVal: 14.2, targetVal: 12 },
+    { severity: 'warning', category: 'reproduction', message: 'Средно живородени < 10 за последните 5 раждания в РОД-5', entity_type: 'hall', entity_id: farHalls[4]?.id, threshold: 'born_alive_avg', thresholdVal: 9.4, targetVal: 10 },
+    { severity: 'warning', category: 'feed', message: 'FCR > 2.80 в УГОЯ-2 — проверете качеството на фуража', entity_type: 'hall', entity_id: finHalls[1]?.id, threshold: 'fcr_finishing', thresholdVal: 2.92, targetVal: 2.80 },
+    { severity: 'warning', category: 'inventory', message: 'Рибно брашно под минимален запас (200 кг) — текущо: 180 кг', entity_type: 'feed_component', entity_id: cid('Fish Meal'), threshold: 'stock_kg', thresholdVal: 180, targetVal: 200 },
+    { severity: 'info', category: 'reproduction', message: 'Тегло при отбиване < 5.2 кг за партида W-2026-03 — проверете млечност на майки', entity_type: 'animal_group', entity_id: groupIds[2]?.id, threshold: 'weaning_weight_kg', thresholdVal: 4.8, targetVal: 5.2 },
+    { severity: 'info', category: 'logistics', message: 'Силоз УГОЯ-4 под 20% — планирайте зареждане', entity_type: 'silo', entity_id: null, threshold: 'silo_level_pct', thresholdVal: 15, targetVal: 20 },
+    { severity: 'critical', category: 'biosecurity', message: '48ч правило нарушено: Тодор Михайлов опита достъп до РОД-2 след посещение на УГОЯ-1', entity_type: 'personnel', entity_id: farmWorkerIds[0], threshold: '48h_rule', thresholdVal: 1, targetVal: 0 }
+  ];
+  for (let i = 0; i < alertsData.length; i++) {
+    const a = alertsData[i];
+    const hoursAgo = i < 3 ? Math.floor(Math.random() * 6) + 1 : Math.floor(Math.random() * 48) + 6;
+    const isAck = i >= 5; // last 3 are acknowledged
+    await db.query(
+      `INSERT INTO alerts (severity, category, message, related_entity_type, related_entity_id, threshold_name, threshold_value, target_value, is_acknowledged, acknowledged_by, acknowledged_at, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW() - INTERVAL '${hoursAgo} hours')`,
+      [a.severity, a.category, a.message, a.entity_type, a.entity_id || null, a.threshold, a.thresholdVal, a.targetVal,
+       isAck, isAck ? adminId : null, isAck ? new Date(now - hoursAgo * 3600000 + 1800000).toISOString() : null]
+    );
+  }
+
+  // ─── Dispatch orders: sample expeditions ────────────────────────
+  const allVehicles = await db.query('SELECT id, vehicle_type FROM vehicles ORDER BY id');
+  const livestockVehicle = allVehicles.rows.find(v => v.vehicle_type === 'livestock_transport');
+  const feedTrucks = allVehicles.rows.filter(v => v.vehicle_type === 'feed_truck');
+
+  const dispatchData = [
+    { group: groupIds.find(g => g.cat === 'finisher' && g.name.includes('F-2025-08')), status: 'proposed', daysFromNow: 30, heads: 120, buyer: 'Градус АД', dest: 'Кланица Градус, Стара Загора', auto: true },
+    { group: groupIds.find(g => g.cat === 'finisher' && g.name.includes('F-2025-08')), status: 'confirmed', daysFromNow: 32, heads: 125, buyer: 'Тандем ООД', dest: 'Кланица Тандем, Пловдив', auto: false },
+    { group: groupIds.find(g => g.cat === 'finisher' && g.name.includes('F-2025-09')), status: 'proposed', daysFromNow: 50, heads: 228, buyer: 'Меском ЕООД', dest: 'Кланица Меском, Бургас', auto: true },
+    { group: groupIds.find(g => g.cat === 'finisher' && g.name.includes('F-2025-09')), status: 'delivered', daysFromNow: -10, heads: 100, buyer: 'Градус АД', dest: 'Кланица Градус, Стара Загора', auto: false, weightLoad: 11000, weightDest: 10780 }
+  ];
+  for (const d of dispatchData) {
+    if (!d.group) continue;
+    const dispDate = new Date(now + d.daysFromNow * day).toISOString().split('T')[0];
+    await db.query(
+      `INSERT INTO dispatch_orders (group_id, dispatch_date, buyer_name, destination, vehicle_id, driver_id, head_count, weight_at_loading_kg, weight_at_destination_kg, shrinkage_pct, status, auto_generated, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+      [d.group.id, dispDate, d.buyer, d.dest,
+       livestockVehicle?.id || null, driverIds[0] || null, d.heads,
+       d.weightLoad || null, d.weightDest || null,
+       d.weightLoad && d.weightDest ? Math.round((d.weightLoad - d.weightDest) / d.weightLoad * 10000) / 100 : null,
+       d.status, d.auto, adminId]
+    );
+  }
+
+  // ─── Active withdrawals: medicines with active carency ──────────
+  const withdrawalSeedData = [
+    { groupIdx: 0, medicine: 'Amoxicillin', daysAgo: 5 },   // 14 day rule → 9 days left
+    { groupIdx: 3, medicine: 'Ivermectin', daysAgo: 10 },    // 21 day rule → 11 days left
+    { groupIdx: 1, medicine: 'Enrofloxacin', daysAgo: 3 }    // 10 day rule → 7 days left
+  ];
+  for (const ws of withdrawalSeedData) {
+    const grp = groupIds[ws.groupIdx];
+    const medId = mid(ws.medicine);
+    const rule = withdrawalRules.find(r => r.medicine === ws.medicine);
+    if (!grp || !medId || !rule) continue;
+    const startDate = new Date(now - ws.daysAgo * day).toISOString().split('T')[0];
+    const endDate = new Date(now + (rule.days - ws.daysAgo) * day).toISOString().split('T')[0];
+    await db.query(
+      `INSERT INTO active_withdrawals (group_id, medicine_id, start_date, end_date, status)
+       VALUES ($1, $2, $3, $4, 'active')`,
+      [grp.id, medId, startDate, endDate]
+    );
+  }
+
+  // ─── Delivery routes + stops ────────────────────────────────────
+  const allSilos = await db.query('SELECT s.id, s.hall_id, s.silo_name, h.name as hall_name FROM silos s JOIN halls h ON h.id = s.hall_id ORDER BY s.id');
+  const routesData = [
+    { status: 'completed', daysAgo: 2, vehicleIdx: 0, driverIdx: 0, tons: 8.5, kmStart: 15200, kmEnd: 15280, stops: [
+      { siloIdx: 18, tons: 2.5, delivered: 2.5, status: 'delivered' },
+      { siloIdx: 19, tons: 3.0, delivered: 3.0, status: 'delivered' },
+      { siloIdx: 20, tons: 3.0, delivered: 3.0, status: 'delivered' }
+    ]},
+    { status: 'in_progress', daysAgo: 0, vehicleIdx: 1, driverIdx: 1, tons: 10.0, kmStart: 22100, kmEnd: null, stops: [
+      { siloIdx: 21, tons: 3.5, delivered: 3.5, status: 'delivered' },
+      { siloIdx: 22, tons: 3.5, delivered: null, status: 'pending' },
+      { siloIdx: 23, tons: 3.0, delivered: null, status: 'pending' }
+    ]},
+    { status: 'planned', daysAgo: -1, vehicleIdx: 2, driverIdx: 2, tons: 7.0, kmStart: null, kmEnd: null, stops: [
+      { siloIdx: 0, tons: 2.0, delivered: null, status: 'pending' },
+      { siloIdx: 1, tons: 2.5, delivered: null, status: 'pending' },
+      { siloIdx: 2, tons: 2.5, delivered: null, status: 'pending' }
+    ]}
+  ];
+  for (const route of routesData) {
+    const routeDate = new Date(now - route.daysAgo * day).toISOString().split('T')[0];
+    const vId = feedTrucks[route.vehicleIdx]?.id;
+    const drId = driverIds[route.driverIdx];
+    if (!vId || !drId) continue;
+    const rRes = await db.query(
+      `INSERT INTO delivery_routes (route_date, vehicle_id, driver_id, status, total_tons, started_at, completed_at, km_start, km_end, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+      [routeDate, vId, drId, route.status, route.tons,
+       route.status !== 'planned' ? new Date(now - route.daysAgo * day + 6 * 3600000).toISOString() : null,
+       route.status === 'completed' ? new Date(now - route.daysAgo * day + 10 * 3600000).toISOString() : null,
+       route.kmStart, route.kmEnd, adminId]
+    );
+    if (rRes.rows[0]) {
+      for (let si = 0; si < route.stops.length; si++) {
+        const stop = route.stops[si];
+        const silo = allSilos.rows[stop.siloIdx];
+        if (!silo) continue;
+        await db.query(
+          `INSERT INTO delivery_stops (route_id, stop_order, silo_id, planned_tons, delivered_tons, status, delivered_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [rRes.rows[0].id, si + 1, silo.id, stop.tons, stop.delivered,
+           stop.status, stop.status === 'delivered' ? new Date(now - route.daysAgo * day + (7 + si) * 3600000).toISOString() : null]
+        );
+      }
+    }
+  }
+
+  // ─── Access logs: rich data for heatmap ─────────────────────────
+  const allPersonnelRes = await db.query("SELECT id, role FROM personnel WHERE role IN ('farm_worker', 'zooeng', 'production_manager', 'cleaner') ORDER BY id");
+  const accessPersonnel = allPersonnelRes.rows;
+  for (let dBack = 0; dBack < 7; dBack++) {
+    for (const person of accessPersonnel) {
+      // Each person enters 2-4 halls per day
+      const numEntries = Math.floor(Math.random() * 3) + 2;
+      const shuffledHalls = [...hallRows.rows].sort(() => Math.random() - 0.5);
+      for (let e = 0; e < numEntries && e < shuffledHalls.length; e++) {
+        const h = shuffledHalls[e];
+        const hour = 6 + Math.floor(Math.random() * 10); // 6:00-16:00
+        const entryTime = new Date(now - dBack * day + hour * 3600000);
+        await db.query(
+          `INSERT INTO access_logs (personnel_id, hall_id, action, zone, sector_code, method, shower_confirmed, created_at)
+           VALUES ($1, $2, 'entry', $3, $4, 'manual', $5, $6) ON CONFLICT DO NOTHING`,
+          [person.id, h.id, 'black', h.sector_code, h.sector_code === 'FAR', entryTime.toISOString()]
+        );
+      }
+    }
+  }
+
+  // ─── Biosecurity violations ─────────────────────────────────────
+  const violationsData = [
+    { personIdx: 0, sourceHall: finHalls[0], targetHall: farHalls[1], type: '48h_rule', severity: 'critical', desc: 'Влизане в РОД-2 по-малко от 48ч след посещение на УГОЯ-1. Необходима дезинфекция.', resolved: false, daysAgo: 0 },
+    { personIdx: 2, sourceHall: finHalls[2], targetHall: farHalls[3], type: '48h_rule', severity: 'critical', desc: 'Влизане в РОД-4 по-малко от 48ч след посещение на УГОЯ-3. Override разрешен от управител.', resolved: false, overridden: true, daysAgo: 1 },
+    { personIdx: 4, sourceHall: finHalls[1], targetHall: farHalls[0], type: '48h_rule', severity: 'critical', desc: 'Влизане в РОД-1 по-малко от 48ч след посещение на УГОЯ-2.', resolved: true, daysAgo: 3 },
+    { personIdx: 1, sourceHall: finHalls[3], targetHall: farHalls[5], type: '48h_rule', severity: 'critical', desc: 'Влизане в РОД-6 по-малко от 48ч след посещение на УГОЯ-4.', resolved: true, daysAgo: 5 }
+  ];
+  for (const v of violationsData) {
+    const pId = farmWorkerIds[v.personIdx];
+    if (!pId || !v.sourceHall || !v.targetHall) continue;
+    await db.query(
+      `INSERT INTO biosecurity_violations (personnel_id, violation_type, source_hall_id, target_hall_id, severity, description, is_overridden, is_resolved, resolved_by, resolved_at, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW() - INTERVAL '${v.daysAgo} days')`,
+      [pId, v.type, v.sourceHall.id, v.targetHall.id, v.severity, v.desc,
+       v.overridden || false, v.resolved, v.resolved ? adminId : null,
+       v.resolved ? new Date(now - (v.daysAgo - 1) * day).toISOString() : null]
+    );
+  }
+
+  // ─── Bonus calculations: pre-calculated for recent months ───────
+  const bonusRulesRes = await db.query('SELECT * FROM bonus_rules ORDER BY id');
+  const salaryRes = await db.query('SELECT * FROM salary_templates ORDER BY id');
+  const bonusMonths = ['2025-12', '2026-01', '2026-02'];
+  const bonusKPIValues = {
+    'survival_farrowing': [11.5, 10.8, 9.5],  // mortality % — lower is better, target < 12
+    'weaning_weight': [6.2, 6.4, 6.5],         // kg — higher is better, target > 6.0
+    'fcr_finishing': [2.38, 2.42, 2.35]         // ratio — lower is better, target < 2.40
+  };
+  for (let mi = 0; mi < bonusMonths.length; mi++) {
+    const mk = bonusMonths[mi];
+    for (const rule of bonusRulesRes.rows) {
+      const kpiVal = bonusKPIValues[rule.kpi_name]?.[mi];
+      if (kpiVal === undefined) continue;
+      const targetMet = rule.operator === 'lt' ? kpiVal < parseFloat(rule.target_value) : kpiVal > parseFloat(rule.target_value);
+      // Find eligible personnel for this sector
+      const sectorHalls = hallRows.rows.filter(h => h.sector_code === rule.applies_to_sector_code);
+      const eligibleRes = await db.query(
+        `SELECT DISTINCT ph.personnel_id FROM personnel_halls ph
+         JOIN personnel p ON p.id = ph.personnel_id
+         WHERE ph.hall_id = ANY($1) AND p.is_active = true`,
+        [sectorHalls.map(h => h.id)]
+      );
+      for (const ep of eligibleRes.rows) {
+        const salary = salaryRes.rows.find(s => s.role === 'farm_worker') || salaryRes.rows[0];
+        const bonusAmt = targetMet ? Math.round(parseFloat(salary.base_salary_eur) * parseFloat(rule.bonus_pct) / 100 * 100) / 100 : 0;
+        const status = mi < 2 ? 'approved' : 'calculated'; // older months approved, current month calculated
+        await db.query(
+          `INSERT INTO bonus_calculations (month_key, personnel_id, bonus_rule_id, kpi_actual_value, target_value, target_met, base_salary_eur, bonus_pct, bonus_amount_eur, status, approved_by, approved_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+          [mk, ep.personnel_id, rule.id, kpiVal, rule.target_value, targetMet,
+           salary.base_salary_eur, rule.bonus_pct, bonusAmt, status,
+           status === 'approved' ? adminId : null,
+           status === 'approved' ? new Date(now - (2 - mi) * 30 * day).toISOString() : null]
+        );
+      }
+    }
+  }
+
+  // ─── Hall hygiene pauses ────────────────────────────────────────
+  // 1 completed pause, 1 active pause
+  if (farHalls[5]) {
+    await db.query(
+      `INSERT INTO hall_hygiene_pauses (hall_id, required_days, cleaning_confirmed, cleaning_confirmed_at, cleaning_confirmed_by, disinfection_confirmed, disinfection_confirmed_at, disinfection_confirmed_by, status, ready_date, completed_at, completed_by, start_date)
+       VALUES ($1, 5, true, NOW() - INTERVAL '8 days', $2, true, NOW() - INTERVAL '7 days', $2, 'ready', (CURRENT_DATE - INTERVAL '6 days')::date, NOW() - INTERVAL '6 days', $2, (CURRENT_DATE - INTERVAL '12 days')::date)`,
+      [farHalls[5].id, adminId]
+    );
+  }
+  if (nurHalls[3]) {
+    await db.query(
+      `INSERT INTO hall_hygiene_pauses (hall_id, required_days, cleaning_confirmed, cleaning_confirmed_at, cleaning_confirmed_by, disinfection_confirmed, status, ready_date, start_date)
+       VALUES ($1, 5, true, NOW() - INTERVAL '1 day', $2, false, 'cleaning_done', (CURRENT_DATE + INTERVAL '3 days')::date, (CURRENT_DATE - INTERVAL '2 days')::date)`,
+      [nurHalls[3].id, adminId]
+    );
+  }
+
+  // ─── Traceability records ───────────────────────────────────────
+  for (let ti = 0; ti < Math.min(3, groupIds.length); ti++) {
+    const grp = groupIds[ti];
+    if (!grp) continue;
+    const traceData = {
+      batch: { group_name: grp.name, hall: 'N/A', sector: grp.cat === 'finisher' ? 'FIN' : 'NUR', entry_date: new Date(now - grp.daysAgo * day).toISOString().split('T')[0], entry_count: grp.entry, entry_weight: grp.entryW, current_count: grp.current, current_weight: grp.currentW },
+      genetics: litterIds.slice(0, 2).map((lid, i) => ({ litter_id: lid, sow_ear_tag: `BG-${String(1001 + i).padStart(5, '0')}`, breed: 'DanBred', parity: 3, born_alive: 13, birth_date: new Date(now - 90 * day).toISOString().split('T')[0] })),
+      feed: { recipe: grp.cat === 'finisher' ? 'Финишер (Угояване)' : 'Стартер (7-12 кг)', cost_per_ton: grp.cat === 'finisher' ? 315 : 950 },
+      vetEvents: [{ type: 'vaccination', date: new Date(now - (grp.daysAgo - 3) * day).toISOString().split('T')[0], performed_by: 'Д-р Калина Петрова', details: { vaccine: 'PCV2', dose: '2ml' } }],
+      withdrawals: [],
+      generated_at: new Date().toISOString()
+    };
+    await db.query(
+      `INSERT INTO traceability_records (group_id, data, generated_by) VALUES ($1, $2, $3) ON CONFLICT (group_id) DO NOTHING`,
+      [grp.id, JSON.stringify(traceData), adminId]
+    );
+  }
+
+  // ─── Regulatory documents ───────────────────────────────────────
+  const regDocs = [
+    { type: 'diary_no1', ref: 'DNV-2026-0001', title: 'Дневник №1 — Януари 2026', from: '2026-01-01', to: '2026-01-31', status: 'finalized',
+      data: { vaccinations: [{ event_date: '2026-01-10', hall_name: 'РОД-1', details: { vaccine: 'PCV2' }, performed_by: 'Д-р Калина Петрова' }], disinfections: [{ disinfection_date: '2026-01-05', plate_number: 'CB1234AB', wash_confirmed: true, disinfect_confirmed: true }], mortality: [], treatments: [{ event_date: '2026-01-15', hall_name: 'ПОДР-2', details: { medicine: 'Amoxicillin', dose: '5ml' }, performed_by: 'Д-р Пламен Стефанов' }], transfers: [], totals: { vaccinations: 1, disinfections: 1, mortality: 0, treatments: 1, transfers: 0 } } },
+    { type: 'animal_register', ref: 'REG-2026-0001', title: 'ИАСРЖ Регистър — Януари 2026', from: '2026-01-01', to: '2026-01-31', status: 'submitted',
+      data: { initial: { gilt: 0, sow: 108, boar: 5, weaner: 540, finisher: 1240 }, final: { gilt: 0, sow: 110, boar: 5, weaner: 534, finisher: 1222 }, movements: { born: 325, sold: 475, died: 12, culled: 8 }, balance: { initial_total: 1893, final_total: 1871 } } },
+    { type: 'diary_no1', ref: 'DNV-2026-0002', title: 'Дневник №1 — Февруари 2026', from: '2026-02-01', to: '2026-02-28', status: 'draft',
+      data: { vaccinations: [{ event_date: '2026-02-05', hall_name: 'ПОДР-1', details: { vaccine: 'Mycoplasma' }, performed_by: 'Д-р Росица Вълчева' }], disinfections: [{ disinfection_date: '2026-02-10', plate_number: 'CB5678CD', wash_confirmed: true, disinfect_confirmed: true }], mortality: [{ event_date: '2026-02-12', hall_name: 'ПОДР-3', category: 'weaner', details: { cause: 'respiratory', count: 2 } }], treatments: [], transfers: [], totals: { vaccinations: 1, disinfections: 1, mortality: 1, treatments: 0, transfers: 0 } } }
+  ];
+  for (const doc of regDocs) {
+    await db.query(
+      `INSERT INTO regulatory_documents (document_type, reference_number, title, period_from, period_to, data, status, generated_by, generated_at, finalized_by, finalized_at, submitted_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9, $10, $11) ON CONFLICT (reference_number) DO NOTHING`,
+      [doc.type, doc.ref, doc.title, doc.from, doc.to, JSON.stringify(doc.data), doc.status, adminId,
+       doc.status !== 'draft' ? adminId : null,
+       doc.status !== 'draft' ? new Date(now - 10 * day).toISOString() : null,
+       doc.status === 'submitted' ? new Date(now - 5 * day).toISOString() : null]
+    );
+  }
+
+  // ─── Feed production batches ────────────────────────────────────
+  const allRecipesForBatch = await db.query('SELECT id, name FROM feed_recipes ORDER BY id');
+  const batchData = [
+    { recipeIdx: 0, daysAgo: 3, tons: 5.0 },   // Lactating Sows
+    { recipeIdx: 1, daysAgo: 5, tons: 8.0 },   // Pregnant Sows
+    { recipeIdx: 2, daysAgo: 2, tons: 3.0 },   // Starter
+    { recipeIdx: 3, daysAgo: 1, tons: 12.0 },  // Finisher
+    { recipeIdx: 3, daysAgo: 7, tons: 10.0 },  // Finisher
+    { recipeIdx: 0, daysAgo: 10, tons: 5.5 },  // Lactating Sows
+    { recipeIdx: 1, daysAgo: 12, tons: 7.0 },  // Pregnant Sows
+    { recipeIdx: 3, daysAgo: 14, tons: 11.0 }  // Finisher
+  ];
+  for (const b of batchData) {
+    const recipe = allRecipesForBatch.rows[b.recipeIdx];
+    if (!recipe) continue;
+    const batchDate = new Date(now - b.daysAgo * day).toISOString().split('T')[0];
+    await db.query(
+      `INSERT INTO feed_production_batches (recipe_id, batch_date, quantity_tons, produced_by, deduction_confirmed, notes)
+       VALUES ($1, $2, $3, $4, true, $5)`,
+      [recipe.id, batchDate, b.tons, adminId, `Производство ${recipe.name} — ${b.tons}т`]
+    );
+  }
+
+  // ─── Inventory counts (2 full counts) ───────────────────────────
+  const invDates = [new Date(now - 15 * day).toISOString().split('T')[0], new Date(now - 45 * day).toISOString().split('T')[0]];
+  for (const invDate of invDates) {
+    for (const comp of allComps.rows) {
+      const theoretical = parseFloat(comp.current_stock_kg);
+      const variancePct = (Math.random() * 6 - 3); // -3% to +3%
+      const counted = Math.round(theoretical * (1 + variancePct / 100));
+      const variance = counted - theoretical;
+      await db.query(
+        `INSERT INTO inventory_counts (count_date, component_id, counted_kg, theoretical_kg, variance_kg, variance_pct, counted_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT DO NOTHING`,
+        [invDate, comp.id, counted, theoretical, Math.round(variance), Math.round(variancePct * 100) / 100, adminId]
+      );
+    }
+  }
+
+  return ok({ message: 'Seed data заредени: 5 сектора, 25 халета, 15 суровини, 4 рецепти, 6 шаблона заплати, 10 медикамента, 10 карентни правила, 3 бонус правила, 7 шофьори + 22 персонал (всички роли), 8 МПС, 25 силоза, 110 свине майки + 5 нерези, 8 партиди животни, 8 продажби, 40 разходи, 240 водни отчети, 40 KPI, 5 P&L, 8 аларми, 4 експедиции, 3 карентни срока, 3 маршрута, ~100 access logs, 4 нарушения биосигурност, бонус изчисления (3 мес.), 2 хигиенни паузи, 3 проследимости, 3 рег. документа, 8 партиди фураж, 30 инвентаризации, 1 admin (admin@ajaxerp.com / admin123)' });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -4274,7 +4562,7 @@ async function bonusSummary(db, { month_key }) {
     LEFT JOIN bonus_calculations bc ON bc.bonus_rule_id = br.id AND bc.month_key = $1
     WHERE br.is_active = true
     GROUP BY br.kpi_name, br.kpi_label, br.target_value, br.operator, br.bonus_pct, bc.kpi_actual_value, bc.target_met, bc.status
-    ORDER BY br.id
+    ORDER BY br.kpi_name
   `, [mk]);
   return ok({ month: mk, summary: result.rows });
 }
