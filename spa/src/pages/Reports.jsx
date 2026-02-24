@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { api } from '../api.js'
 import { useAuth } from '../AuthContext.jsx'
 
-function fmtBgn(v) { return v != null ? Number(v).toLocaleString('bg-BG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' лв' : '-' }
+function fmtEur(v) { return v != null ? Number(v).toLocaleString('bg-BG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €' : '-' }
 function fmtDate(d) { if (!d) return '-'; const dt = new Date(d); return `${String(dt.getDate()).padStart(2,'0')}.${String(dt.getMonth()+1).padStart(2,'0')}.${dt.getFullYear()}` }
 function fmtNum(v, dec = 1) { return v != null ? Number(v).toFixed(dec) : '-' }
 
@@ -22,7 +22,7 @@ export default function Reports() {
         <div className={`tab ${tab === 'halls' ? 'active' : ''}`} onClick={() => setTab('halls')}>Халета</div>
         <div className={`tab ${tab === 'inventory' ? 'active' : ''}`} onClick={() => setTab('inventory')}>Инвентар</div>
         <div className={`tab ${tab === 'trucks' ? 'active' : ''}`} onClick={() => setTab('trucks')}>Фуражовози</div>
-        <div className={`tab ${tab === 'mortality' ? 'active' : ''}`} onClick={() => setTab('mortality')}>Смъртност (лв)</div>
+        <div className={`tab ${tab === 'mortality' ? 'active' : ''}`} onClick={() => setTab('mortality')}>Смъртност (€)</div>
         <div className={`tab ${tab === 'dailyio' ? 'active' : ''}`} onClick={() => setTab('dailyio')}>Вход/Изход</div>
       </div>
       {tab === 'npd' && <NpdReport />}
@@ -156,7 +156,7 @@ function FeedReport() {
 
   const totalTons = data.byRecipe?.reduce((s, r) => s + r.total_tons, 0) || 0
   const totalBatches = data.byRecipe?.reduce((s, r) => s + r.batch_count, 0) || 0
-  const totalCost = data.costByMonth?.reduce((s, r) => s + r.cost_bgn, 0) || 0
+  const totalCost = data.costByMonth?.reduce((s, r) => s + r.cost_eur, 0) || 0
   const avgCostPerTon = totalTons > 0 ? totalCost / totalTons : 0
 
   return (
@@ -171,11 +171,11 @@ function FeedReport() {
           <div className="stat-label">Производствени партиди</div>
         </div>
         <div className="stat-card">
-          <div className="stat-value">{fmtBgn(totalCost)}</div>
+          <div className="stat-value">{fmtEur(totalCost)}</div>
           <div className="stat-label">Общ разход</div>
         </div>
         <div className="stat-card">
-          <div className="stat-value">{fmtBgn(avgCostPerTon)}</div>
+          <div className="stat-value">{fmtEur(avgCostPerTon)}</div>
           <div className="stat-label">Разход/тон</div>
         </div>
       </div>
@@ -201,14 +201,14 @@ function FeedReport() {
         <div className="card" style={{ marginTop: 16 }}>
           <h3>Разход по месец</h3>
           <table>
-            <thead><tr><th>Месец</th><th>Тонове</th><th>Разход (лв)</th><th>Разход/тон</th></tr></thead>
+            <thead><tr><th>Месец</th><th>Тонове</th><th>Разход (€)</th><th>Разход/тон</th></tr></thead>
             <tbody>
               {data.costByMonth.map(r => (
                 <tr key={r.month}>
                   <td>{r.month}</td>
                   <td>{fmtNum(r.tons, 2)}</td>
-                  <td>{fmtBgn(r.cost_bgn)}</td>
-                  <td>{fmtBgn(r.cost_per_ton)}</td>
+                  <td>{fmtEur(r.cost_eur)}</td>
+                  <td>{fmtEur(r.cost_per_ton)}</td>
                 </tr>
               ))}
             </tbody>
@@ -486,8 +486,8 @@ function MortalityValueReport() {
           <div className="stat-label">Умрели животни</div>
         </div>
         <div className="stat-card red">
-          <div className="stat-value">{fmtBgn(data.totalValueBgn)}</div>
-          <div className="stat-label">Загуба (лв)</div>
+          <div className="stat-value">{fmtEur(data.totalValueEur)}</div>
+          <div className="stat-label">Загуба (€)</div>
         </div>
         <div className="stat-card">
           <div className="stat-value">{fmtNum(data.totalValueEur, 0)} EUR</div>
@@ -499,10 +499,10 @@ function MortalityValueReport() {
         <div className="card" style={{ marginBottom: 16 }}>
           <h3>Загуби по сектор</h3>
           <table>
-            <thead><tr><th>Сектор</th><th>Брой</th><th>Стойност (лв)</th></tr></thead>
+            <thead><tr><th>Сектор</th><th>Брой</th><th>Стойност (€)</th></tr></thead>
             <tbody>
               {data.bySector.map(s => (
-                <tr key={s.sector}><td><strong>{s.sector}</strong></td><td>{s.count}</td><td style={{color:'var(--danger)'}}>{fmtBgn(s.valueBgn)}</td></tr>
+                <tr key={s.sector}><td><strong>{s.sector}</strong></td><td>{s.count}</td><td style={{color:'var(--danger)'}}>{fmtEur(s.valueEur)}</td></tr>
               ))}
             </tbody>
           </table>
@@ -513,14 +513,14 @@ function MortalityValueReport() {
         <div className="card" style={{ marginBottom: 16 }}>
           <h3>Загуби по категория</h3>
           <table>
-            <thead><tr><th>Категория</th><th>Брой</th><th>Стойност (лв)</th><th>Ест. цена/бр (лв)</th></tr></thead>
+            <thead><tr><th>Категория</th><th>Брой</th><th>Стойност (€)</th><th>Ест. цена/бр (€)</th></tr></thead>
             <tbody>
               {data.byCategory.map(c => (
                 <tr key={c.category}>
                   <td><strong>{CAT_BG[c.category] || c.category}</strong></td>
                   <td>{c.count}</td>
-                  <td style={{color:'var(--danger)'}}>{fmtBgn(c.valueBgn)}</td>
-                  <td>{fmtBgn(data.costEstimates?.[c.category] || 0)}</td>
+                  <td style={{color:'var(--danger)'}}>{fmtEur(c.valueEur)}</td>
+                  <td>{fmtEur(data.costEstimates?.[c.category] || 0)}</td>
                 </tr>
               ))}
             </tbody>
@@ -532,10 +532,10 @@ function MortalityValueReport() {
         <div className="card">
           <h3>Загуби по дата</h3>
           <table>
-            <thead><tr><th>Дата</th><th>Брой</th><th>Стойност (лв)</th></tr></thead>
+            <thead><tr><th>Дата</th><th>Брой</th><th>Стойност (€)</th></tr></thead>
             <tbody>
               {data.byDate.map(d => (
-                <tr key={d.date}><td>{fmtDate(d.date)}</td><td>{d.count}</td><td style={{color:'var(--danger)'}}>{fmtBgn(d.valueBgn)}</td></tr>
+                <tr key={d.date}><td>{fmtDate(d.date)}</td><td>{d.count}</td><td style={{color:'var(--danger)'}}>{fmtEur(d.valueEur)}</td></tr>
               ))}
             </tbody>
           </table>
@@ -573,7 +573,7 @@ function DailyIOReport() {
             <tbody>
               <tr><td>Произведен фураж</td><td><strong>{fmtNum(data.input?.feedProducedTons, 2)} т</strong> ({data.input?.feedProductionBatches} партиди)</td></tr>
               <tr><td>Доставен фураж (по халета)</td><td><strong>{fmtNum(data.input?.feedDeliveredTons, 2)} т</strong> ({data.input?.deliveryRoutes} маршрута)</td></tr>
-              <tr><td>Разход суровини</td><td><strong>{fmtBgn(data.input?.rawMaterialsCostBgn)}</strong></td></tr>
+              <tr><td>Разход суровини</td><td><strong>{fmtEur(data.input?.rawMaterialsCostEur)}</strong></td></tr>
               <tr><td>Живородени</td><td><strong>{data.input?.bornAlive}</strong></td></tr>
               <tr><td>Мъртвородени</td><td>{data.input?.bornDead}</td></tr>
             </tbody>
@@ -586,7 +586,7 @@ function DailyIOReport() {
             <tbody>
               <tr><td>Продадени (глави)</td><td><strong>{data.output?.soldHeads}</strong></td></tr>
               <tr><td>Продадени (кг)</td><td><strong>{fmtNum(data.output?.soldKg, 1)} кг</strong></td></tr>
-              <tr><td>Приход от продажби</td><td><strong>{fmtBgn(data.output?.soldRevenueBgn)}</strong></td></tr>
+              <tr><td>Приход от продажби</td><td><strong>{fmtEur(data.output?.soldRevenueEur)}</strong></td></tr>
               <tr><td>Умрели</td><td style={{color: data.output?.deaths > 0 ? 'var(--danger)' : undefined}}><strong>{data.output?.deaths}</strong></td></tr>
               <tr><td>Ест. прираст (кг)</td><td><strong>{fmtNum(data.output?.estimatedWeightGainKg, 0)} кг</strong></td></tr>
             </tbody>

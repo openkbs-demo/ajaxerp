@@ -3,9 +3,12 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../AuthContext.jsx'
 
 const ROLE_LABELS = {
-  admin: 'Администратор', manager: 'Мениджър', veterinarian: 'Ветеринар',
-  breeding_technician: 'Осеменител', feed_operator: 'Фуражен оператор', farm_worker: 'Животновъд',
-  driver: 'Шофьор'
+  admin: 'Администратор',
+  production_manager: 'Организатор производство',
+  zooeng: 'Зооинженер / Лекар',
+  farm_worker: 'Животновъд',
+  driver: 'Шофьор / Тракторист',
+  cleaner: 'Чистач / Общ работник'
 }
 
 export default function Layout() {
@@ -25,7 +28,6 @@ export default function Layout() {
       <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
           <h2>Pig-Tech ERP</h2>
-          <small>6 500 майки DanBred</small>
         </div>
         <nav className="sidebar-nav" onClick={() => setSidebarOpen(false)}>
           <NavLink to="/dashboard" end>&#128202; Табло</NavLink>

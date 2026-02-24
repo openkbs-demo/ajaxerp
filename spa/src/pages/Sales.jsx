@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { api, exportCsv } from '../api.js'
 import { useAuth } from '../AuthContext.jsx'
 
-function fmtBgn(v) { return v != null ? Number(v).toLocaleString('bg-BG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' лв' : '-' }
+function fmtEur(v) { return v != null ? Number(v).toLocaleString('bg-BG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €' : '-' }
 function fmtDate(d) { if (!d) return '-'; const dt = new Date(d); return `${String(dt.getDate()).padStart(2,'0')}.${String(dt.getMonth()+1).padStart(2,'0')}.${dt.getFullYear()}` }
 
 const TYPE_BG = { finisher: 'Финишери', weaner: 'Отбити', culled: 'Бракувани' }
@@ -68,7 +68,7 @@ export default function Sales() {
       {summary?.total && (
         <div className="grid grid-4" style={{ marginBottom: 24 }}>
           <div className="stat-card green">
-            <div className="stat-value">{fmtBgn(summary.total.total_bgn)}</div>
+            <div className="stat-value">{fmtEur(summary.total.total_eur)}</div>
             <div className="stat-label">Общо приходи</div>
           </div>
           <div className="stat-card">
@@ -80,7 +80,7 @@ export default function Sales() {
             <div className="stat-label">Общо тегло</div>
           </div>
           <div className="stat-card">
-            <div className="stat-value">{summary.total.total_kg > 0 ? (Number(summary.total.total_bgn) / Number(summary.total.total_kg)).toFixed(2) + ' лв/кг' : '-'}</div>
+            <div className="stat-value">{summary.total.total_kg > 0 ? (Number(summary.total.total_eur) / Number(summary.total.total_kg)).toFixed(2) + ' €/кг' : '-'}</div>
             <div className="stat-label">Средна цена/кг</div>
           </div>
         </div>
@@ -107,8 +107,8 @@ export default function Sales() {
                   <td>{s.buyer_name || '-'}</td>
                   <td>{s.head_count}</td>
                   <td>{s.total_weight_kg ? `${Number(s.total_weight_kg).toLocaleString('bg-BG')} кг` : '-'}</td>
-                  <td>{s.price_per_kg ? `${Number(s.price_per_kg).toFixed(2)} лв/кг` : s.price_per_head ? `${Number(s.price_per_head).toFixed(2)} лв/бр` : '-'}</td>
-                  <td style={{fontWeight:600}}>{fmtBgn(s.total_amount_bgn)}</td>
+                  <td>{s.price_per_kg ? `${Number(s.price_per_kg).toFixed(2)} €/кг` : s.price_per_head ? `${Number(s.price_per_head).toFixed(2)} €/бр` : '-'}</td>
+                  <td style={{fontWeight:600}}>{fmtEur(s.total_amount_eur)}</td>
                   <td>{s.invoice_number || '-'}</td>
                 </tr>
               )) : <tr><td colSpan={8} style={{textAlign:'center',color:'var(--text-secondary)'}}>Няма записи</td></tr>}
@@ -148,25 +148,25 @@ export default function Sales() {
                     <input type="number" step="0.01" min="0" value={form.total_weight_kg} onChange={e => setForm(p => ({ ...p, total_weight_kg: e.target.value }))} required />
                   </div>
                   <div className="form-group">
-                    <label>Цена/кг (лв)</label>
+                    <label>Цена/кг (€)</label>
                     <input type="number" step="0.01" min="0" value={form.price_per_kg} onChange={e => setForm(p => ({ ...p, price_per_kg: e.target.value }))} required />
                   </div>
                 </div>
               ) : (
                 <div className="form-group">
-                  <label>Цена/брой (лв)</label>
+                  <label>Цена/брой (€)</label>
                   <input type="number" step="0.01" min="0" value={form.price_per_head} onChange={e => setForm(p => ({ ...p, price_per_head: e.target.value }))} required />
                 </div>
               )}
               {form.sale_type !== 'weaner' && form.head_count && form.total_weight_kg && form.price_per_kg && (
                 <div style={{background:'#e8f5e9',padding:'8px 12px',borderRadius:6,marginBottom:16,fontSize:13}}>
-                  Сума: <strong>{fmtBgn(parseFloat(form.total_weight_kg) * parseFloat(form.price_per_kg))}</strong>
+                  Сума: <strong>{fmtEur(parseFloat(form.total_weight_kg) * parseFloat(form.price_per_kg))}</strong>
                   {' | '}Ср. тегло: <strong>{(parseFloat(form.total_weight_kg) / parseInt(form.head_count)).toFixed(1)} кг/глава</strong>
                 </div>
               )}
               {form.sale_type === 'weaner' && form.head_count && form.price_per_head && (
                 <div style={{background:'#e8f5e9',padding:'8px 12px',borderRadius:6,marginBottom:16,fontSize:13}}>
-                  Сума: <strong>{fmtBgn(parseInt(form.head_count) * parseFloat(form.price_per_head))}</strong>
+                  Сума: <strong>{fmtEur(parseInt(form.head_count) * parseFloat(form.price_per_head))}</strong>
                 </div>
               )}
               <div className="form-row">

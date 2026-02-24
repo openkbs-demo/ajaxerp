@@ -17,7 +17,7 @@ function fmtDate(d) {
   const dt = new Date(d)
   return `${String(dt.getDate()).padStart(2,'0')}.${String(dt.getMonth()+1).padStart(2,'0')}.${dt.getFullYear()}`
 }
-function fmtBgn(v) { return v != null ? Number(v).toLocaleString('bg-BG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' лв' : '-' }
+function fmtEur(v) { return v != null ? Number(v).toLocaleString('bg-BG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €' : '-' }
 
 export default function Dashboard() {
   const [data, setData] = useState(null)
@@ -100,15 +100,15 @@ export default function Dashboard() {
           <h3>Финансови показатели <Link to="/finance" style={{fontSize:12,float:'right'}}>Пълен отчет</Link></h3>
           <div className="grid grid-4" style={{ marginBottom: 16 }}>
             <div className="stat-card green">
-              <div className="stat-value" style={{fontSize:20}}>{fmtBgn(data.finance.revenue)}</div>
+              <div className="stat-value" style={{fontSize:20}}>{fmtEur(data.finance.revenue)}</div>
               <div className="stat-label">Приходи ({data.finance.month})</div>
             </div>
             <div className="stat-card red">
-              <div className="stat-value" style={{fontSize:20}}>{fmtBgn(data.finance.expenses)}</div>
+              <div className="stat-value" style={{fontSize:20}}>{fmtEur(data.finance.expenses)}</div>
               <div className="stat-label">Разходи</div>
             </div>
             <div className={`stat-card ${data.finance.profit >= 0 ? 'green' : 'red'}`}>
-              <div className="stat-value" style={{fontSize:20}}>{fmtBgn(data.finance.profit)}</div>
+              <div className="stat-value" style={{fontSize:20}}>{fmtEur(data.finance.profit)}</div>
               <div className="stat-label">Печалба</div>
             </div>
             <div className={`stat-card ${data.finance.margin >= 15 ? 'green' : data.finance.margin >= 5 ? 'yellow' : 'red'}`}>
@@ -141,18 +141,18 @@ export default function Dashboard() {
             <h3>Доходност на служител (GAD) <Link to="/reports" style={{fontSize:12,float:'right'}}>Пълен отчет</Link></h3>
             <div className="grid grid-2" style={{ marginBottom: 8 }}>
               <div className={`stat-card ${data.employeeProfit.profitPerEmployee >= 0 ? 'green' : 'red'}`}>
-                <div className="stat-value" style={{fontSize:18}}>{fmtBgn(data.employeeProfit.profitPerEmployee)}</div>
+                <div className="stat-value" style={{fontSize:18}}>{fmtEur(data.employeeProfit.profitPerEmployee)}</div>
                 <div className="stat-label">Печалба/служител</div>
               </div>
               <div className="stat-card blue">
-                <div className="stat-value" style={{fontSize:18}}>{fmtBgn(data.employeeProfit.revenuePerEmployee)}</div>
+                <div className="stat-value" style={{fontSize:18}}>{fmtEur(data.employeeProfit.revenuePerEmployee)}</div>
                 <div className="stat-label">Приход/служител</div>
               </div>
             </div>
             <table>
               <tbody>
                 <tr><td>Персонал</td><td><strong>{data.employeeProfit.totalStaff}</strong> души</td></tr>
-                <tr><td>Разход труд/кг месо</td><td><strong>{fmtBgn(data.employeeProfit.labourCostPerKg)}</strong>/кг</td></tr>
+                <tr><td>Разход труд/кг месо</td><td><strong>{fmtEur(data.employeeProfit.labourCostPerKg)}</strong>/кг</td></tr>
               </tbody>
             </table>
           </div>
@@ -240,7 +240,7 @@ export default function Dashboard() {
               <div className="stat-label">Одобрени</div>
             </div>
             <div className="stat-card green">
-              <div className="stat-value" style={{fontSize:18}}>{fmtBgn(data.bonuses.totalBonusBgn)}</div>
+              <div className="stat-value" style={{fontSize:18}}>{fmtEur(data.bonuses.totalBonusEur)}</div>
               <div className="stat-label">Общо бонуси</div>
             </div>
           </div>

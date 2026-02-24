@@ -45,10 +45,6 @@ async function getPulseToken(userId) {
   } catch { return null; }
 }
 
-// ─── Finance Constants ─────────────────────────────────────────────────────
-
-const EUR_BGN_RATE = 1.9558; // Fixed EUR/BGN exchange rate
-
 // Map recipe target_category to sector code for expense attribution
 const CATEGORY_TO_SECTOR = {
   sow: 'FAR',        // Lactating/Pregnant → Родилно (or Бременни)
@@ -339,7 +335,7 @@ async function authRegister(db, { name, email, password, role, phone, hire_date 
   if (!domainAllowed && !WHITELISTED_EMAILS.includes(emailLower)) {
     return err(400, 'Този email не е разрешен за регистрация');
   }
-  const validRoles = ['admin', 'manager', 'veterinarian', 'breeding_technician', 'feed_operator', 'farm_worker', 'driver'];
+  const validRoles = ['admin', 'production_manager', 'zooeng', 'farm_worker', 'driver', 'cleaner'];
   const userRole = validRoles.includes(role) ? role : 'farm_worker';
 
   const existing = await db.query('SELECT id FROM personnel WHERE email = $1', [emailLower]);
@@ -1133,7 +1129,7 @@ async function feedProduce(db, { recipe_id, quantity_tons, produced_by, notes })
   );
 
   // Auto-create expense entry for feed production (Phase 2)
-  const costBgn = parseFloat(quantity_tons) * parseFloat(recipe.rows[0].cost_per_ton) * EUR_BGN_RATE;
+  const costEur = parseFloat(quantity_tons) * parseFloat(recipe.rows[0].cost_per_ton);
   const sectorCode = CATEGORY_TO_SECTOR[recipe.rows[0].target_category];
   let sectorId = null;
   if (sectorCode) {
@@ -1143,10 +1139,10 @@ async function feedProduce(db, { recipe_id, quantity_tons, produced_by, notes })
   const batchDate = new Date().toISOString().split('T')[0];
   const monthKey = batchDate.substring(0, 7);
   await db.query(
-    `INSERT INTO expense_entries (entry_date, month_key, category, subcategory, description, amount_bgn, sector_id, related_entity_type, related_entity_id, created_by)
+    `INSERT INTO expense_entries (entry_date, month_key, category, subcategory, description, amount_eur, sector_id, related_entity_type, related_entity_id, created_by)
      VALUES ($1, $2, 'feed', 'production', $3, $4, $5, 'feed_batch', $6, $7)`,
     [batchDate, monthKey, `${quantity_tons}т ${recipe.rows[0].name_bg || recipe.rows[0].name}`,
-     Math.round(costBgn * 100) / 100, sectorId, batchRes.rows[0].id, produced_by || null]
+     Math.round(costEur * 100) / 100, sectorId, batchRes.rows[0].id, produced_by || null]
   );
 
   // Check for low stock alerts
@@ -1476,9 +1472,9 @@ async function dashboardBundle(db) {
   const currentMonth = new Date().toISOString().substring(0, 7);
   const monthStart = `${currentMonth}-01`;
   const monthRevenue = await db.query(
-    `SELECT COALESCE(SUM(total_amount_bgn), 0) as total FROM sales WHERE sale_date >= $1`, [monthStart]);
+    `SELECT COALESCE(SUM(total_amount_eur), 0) as total FROM sales WHERE sale_date >= $1`, [monthStart]);
   const monthExpenses = await db.query(
-    `SELECT COALESCE(SUM(amount_bgn), 0) as total FROM expense_entries WHERE month_key = $1`, [currentMonth]);
+    `SELECT COALESCE(SUM(amount_eur), 0) as total FROM expense_entries WHERE month_key = $1`, [currentMonth]);
   const revenueVal = parseFloat(monthRevenue.rows[0].total);
   const expenseVal = parseFloat(monthExpenses.rows[0].total);
 
@@ -1513,12 +1509,12 @@ async function dashboardBundle(db) {
   } catch {}
 
   // Phase 5: Bonus summary
-  let bonuses = { currentMonth: currentMonth, calculated: 0, approved: 0, totalBonusBgn: 0 };
+  let bonuses = { currentMonth: currentMonth, calculated: 0, approved: 0, totalBonusEur: 0 };
   try {
-    const bCalc = await db.query(`SELECT status, COUNT(*) as cnt, COALESCE(SUM(bonus_amount_bgn), 0) as total FROM bonus_calculations WHERE month_key = $1 GROUP BY status`, [currentMonth]);
+    const bCalc = await db.query(`SELECT status, COUNT(*) as cnt, COALESCE(SUM(bonus_amount_eur), 0) as total FROM bonus_calculations WHERE month_key = $1 GROUP BY status`, [currentMonth]);
     for (const r of bCalc.rows) {
       if (r.status === 'calculated') bonuses.calculated = parseInt(r.cnt);
-      if (r.status === 'approved') { bonuses.approved = parseInt(r.cnt); bonuses.totalBonusBgn = parseFloat(r.total); }
+      if (r.status === 'approved') { bonuses.approved = parseInt(r.cnt); bonuses.totalBonusEur = parseFloat(r.total); }
     }
   } catch {}
 
@@ -1706,18 +1702,18 @@ async function seedData(db) {
     ['Администратор', 'admin@pigtech.bg', hash, salt, 'admin', generateChannel()]
   );
 
-  // Seed salary templates
+  // Seed salary templates (per spec: Организатор, Зооинженер, Животновъд, Шофьор, Чистач)
   const salarySeeds = [
-    { role: 'admin', salary: 5500 },
-    { role: 'manager', salary: 4200 },
-    { role: 'veterinarian', salary: 4000 },
-    { role: 'breeding_technician', salary: 2800 },
-    { role: 'feed_operator', salary: 2600 },
-    { role: 'farm_worker', salary: 2200 }
+    { role: 'admin', salary: 2800 },
+    { role: 'production_manager', salary: 1810 },
+    { role: 'zooeng', salary: 2429 },
+    { role: 'farm_worker', salary: 1458 },
+    { role: 'driver', salary: 1662 },
+    { role: 'cleaner', salary: 1202 }
   ];
   for (const s of salarySeeds) {
     await db.query(
-      `INSERT INTO salary_templates (role, base_salary_bgn) VALUES ($1, $2) ON CONFLICT (role) DO NOTHING`,
+      `INSERT INTO salary_templates (role, base_salary_eur) VALUES ($1, $2) ON CONFLICT (role) DO NOTHING`,
       [s.role, s.salary]
     );
   }
@@ -1737,7 +1733,7 @@ async function seedData(db) {
   ];
   for (const m of medicines) {
     await db.query(
-      `INSERT INTO medicine_catalog (name, name_bg, unit, price_per_unit_bgn, current_stock, reorder_threshold)
+      `INSERT INTO medicine_catalog (name, name_bg, unit, price_per_unit_eur, current_stock, reorder_threshold)
        VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING`,
       [m.name, m.name_bg, m.unit, m.price, m.stock, Math.round(m.stock * 0.15)]
     );
@@ -1768,10 +1764,7 @@ async function seedData(db) {
     }
   }
 
-  // Add driver salary template
-  await db.query(
-    `INSERT INTO salary_templates (role, base_salary_bgn) VALUES ('driver', 3250) ON CONFLICT (role) DO NOTHING`
-  );
+  // Driver salary already seeded above
 
   // Seed vehicles (7 feed trucks + 1 livestock transport)
   const vehicleData = [
@@ -1873,19 +1866,348 @@ async function seedData(db) {
     );
   }
 
-  return ok({ message: 'Seed data заредени: 5 сектора, 25 халета, 15 суровини, 4 рецепти, 7 шаблона заплати, 10 медикамента, 10 карентни правила, 3 бонус правила, 7 шофьори, 8 МПС, 25 силоза, 1 admin (admin@pigtech.bg / admin123)' });
+  // ─── Rich seed data: Personnel across all roles ─────────────────────
+  const personnelSeed = [
+    // Production Managers (Организатори производство)
+    { name: 'Мария Иванова', email: 'maria@pigtech.bg', role: 'production_manager' },
+    { name: 'Васил Колев', email: 'vasil.k@pigtech.bg', role: 'production_manager' },
+    { name: 'Елена Георгиева', email: 'elena@pigtech.bg', role: 'production_manager' },
+    // Zoo-engineers / Vets (Зооинженери / Лекари)
+    { name: 'Д-р Калина Петрова', email: 'kalina@pigtech.bg', role: 'zooeng' },
+    { name: 'Д-р Пламен Стефанов', email: 'plamen@pigtech.bg', role: 'zooeng' },
+    { name: 'Д-р Росица Вълчева', email: 'rosica@pigtech.bg', role: 'zooeng' },
+    // Farm workers (Животновъди)
+    { name: 'Тодор Михайлов', email: 'todor@pigtech.bg', role: 'farm_worker' },
+    { name: 'Ангел Христов', email: 'angel@pigtech.bg', role: 'farm_worker' },
+    { name: 'Красимир Янков', email: 'krasimir@pigtech.bg', role: 'farm_worker' },
+    { name: 'Йордан Димов', email: 'yordan@pigtech.bg', role: 'farm_worker' },
+    { name: 'Борис Славов', email: 'boris@pigtech.bg', role: 'farm_worker' },
+    { name: 'Светла Маринова', email: 'svetla@pigtech.bg', role: 'farm_worker' },
+    { name: 'Деница Радева', email: 'denica@pigtech.bg', role: 'farm_worker' },
+    { name: 'Румен Кирилов', email: 'rumen@pigtech.bg', role: 'farm_worker' },
+    { name: 'Мирослав Тончев', email: 'miroslav@pigtech.bg', role: 'farm_worker' },
+    { name: 'Стефан Илиев', email: 'stefan@pigtech.bg', role: 'farm_worker' },
+    { name: 'Галина Добрева', email: 'galina@pigtech.bg', role: 'farm_worker' },
+    { name: 'Валентин Стоянов', email: 'valentin@pigtech.bg', role: 'farm_worker' },
+    // Cleaners (Чистачи / Общи работници)
+    { name: 'Пенка Атанасова', email: 'penka@pigtech.bg', role: 'cleaner' },
+    { name: 'Цветана Бойчева', email: 'cvetana@pigtech.bg', role: 'cleaner' },
+    { name: 'Радка Николова', email: 'radka@pigtech.bg', role: 'cleaner' },
+    { name: 'Милка Василева', email: 'milka@pigtech.bg', role: 'cleaner' }
+  ];
+  const personnelIds = {};
+  for (const p of personnelSeed) {
+    const pSalt = generateSalt();
+    const pHash = await hashPassword('pass123', pSalt);
+    const pRes = await db.query(
+      `INSERT INTO personnel (name, email, password_hash, salt, role, phone, hire_date, private_channel)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (email) DO NOTHING RETURNING id`,
+      [p.name, p.email, pHash, pSalt, p.role, '+359 88 ' + Math.floor(1000000 + Math.random() * 9000000), '2024-' + String(Math.floor(Math.random() * 12) + 1).padStart(2, '0') + '-01', generateChannel()]
+    );
+    if (pRes.rows[0]) {
+      if (!personnelIds[p.role]) personnelIds[p.role] = [];
+      personnelIds[p.role].push(pRes.rows[0].id);
+    }
+  }
+
+  // ─── Personnel-Hall assignments ────────────────────────────────────
+  const hallRows = await db.query(`SELECT h.id, s.code as sector_code FROM halls h JOIN sectors s ON s.id = h.sector_id ORDER BY h.id`);
+  const farmWorkerIds = personnelIds['farm_worker'] || [];
+  let fwIdx = 0;
+  for (const h of hallRows.rows) {
+    // Assign 1-2 farm workers per hall
+    if (farmWorkerIds[fwIdx]) {
+      await db.query('INSERT INTO personnel_halls (personnel_id, hall_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [farmWorkerIds[fwIdx], h.id]);
+    }
+    fwIdx = (fwIdx + 1) % farmWorkerIds.length;
+  }
+  // Assign cleaners to first halls of each sector
+  const cleanerIds = personnelIds['cleaner'] || [];
+  const sectorCodes = ['INS', 'PREG', 'FAR', 'NUR', 'FIN'];
+  for (let i = 0; i < cleanerIds.length && i < sectorCodes.length; i++) {
+    const sectorHalls = hallRows.rows.filter(h => h.sector_code === sectorCodes[i]);
+    for (const sh of sectorHalls.slice(0, 2)) {
+      await db.query('INSERT INTO personnel_halls (personnel_id, hall_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [cleanerIds[i], sh.id]);
+    }
+  }
+
+  // ─── Animals: Sows in various lifecycle stages ─────────────────────
+  const insHalls = hallRows.rows.filter(h => h.sector_code === 'INS');
+  const pregHalls = hallRows.rows.filter(h => h.sector_code === 'PREG');
+  const farHalls = hallRows.rows.filter(h => h.sector_code === 'FAR');
+  const nurHalls = hallRows.rows.filter(h => h.sector_code === 'NUR');
+  const finHalls = hallRows.rows.filter(h => h.sector_code === 'FIN');
+
+  const sowStatuses = [
+    { status: 'awaiting_breeding', halls: insHalls, count: 15 },
+    { status: 'inseminated', halls: insHalls, count: 20 },
+    { status: 'pregnant_confirmed', halls: pregHalls, count: 30 },
+    { status: 'in_farrowing', halls: farHalls, count: 10 },
+    { status: 'lactating', halls: farHalls, count: 25 },
+    { status: 'weaned_resting', halls: insHalls, count: 10 }
+  ];
+
+  const allSowIds = [];
+  let sowTag = 1001;
+  const vetIds = personnelIds['zooeng'] || [adminId];
+  for (const grp of sowStatuses) {
+    for (let i = 0; i < grp.count; i++) {
+      const hall = grp.halls[i % grp.halls.length];
+      const parity = Math.floor(Math.random() * 6) + 1;
+      const dob = new Date(Date.now() - (365 * (1.5 + Math.random() * 4)) * 86400000).toISOString().split('T')[0];
+      const res = await db.query(
+        `INSERT INTO animals (ear_tag, category, breed, date_of_birth, status, parity_number, current_hall_id, entry_date, notes)
+         VALUES ($1, 'sow', 'DanBred', $2, $3, $4, $5, $6, $7) ON CONFLICT (ear_tag) DO NOTHING RETURNING id`,
+        [`BG-${String(sowTag++).padStart(5, '0')}`, dob, grp.status, parity, hall.id, dob, `Parity ${parity}`]
+      );
+      if (res.rows[0]) allSowIds.push({ id: res.rows[0].id, status: grp.status, hall_id: hall.id, parity });
+    }
+  }
+
+  // Seed 5 boars
+  const boarIds = [];
+  for (let i = 0; i < 5; i++) {
+    const hall = insHalls[i % insHalls.length];
+    const dob = new Date(Date.now() - (365 * (2 + Math.random() * 3)) * 86400000).toISOString().split('T')[0];
+    const res = await db.query(
+      `INSERT INTO animals (ear_tag, category, breed, date_of_birth, status, current_hall_id, entry_date, notes)
+       VALUES ($1, 'boar', 'DanBred Duroc', $2, 'active', $3, $4, 'Breeding boar') ON CONFLICT (ear_tag) DO NOTHING RETURNING id`,
+      [`BOAR-${String(i + 1).padStart(3, '0')}`, dob, hall.id, dob]
+    );
+    if (res.rows[0]) boarIds.push(res.rows[0].id);
+  }
+
+  // ─── Events: inseminations, pregnancy checks, farrowings ──────────
+  const now = Date.now();
+  const day = 86400000;
+  const eventIds = [];
+
+  // Insemination events for inseminated + pregnant + farrowing + lactating sows
+  const inseminatedSows = allSowIds.filter(s => ['inseminated', 'pregnant_confirmed', 'in_farrowing', 'lactating'].includes(s.status));
+  for (const sow of inseminatedSows) {
+    const daysAgo = sow.status === 'inseminated' ? Math.floor(Math.random() * 20) + 5
+      : sow.status === 'pregnant_confirmed' ? Math.floor(Math.random() * 40) + 25
+      : sow.status === 'in_farrowing' ? Math.floor(Math.random() * 10) + 105
+      : Math.floor(Math.random() * 20) + 115; // lactating
+    const eventDate = new Date(now - daysAgo * day).toISOString().split('T')[0];
+    const vet = vetIds[Math.floor(Math.random() * vetIds.length)];
+    const res = await db.query(
+      `INSERT INTO events (event_type, animal_id, hall_id, performed_by, event_date, details)
+       VALUES ('insemination', $1, $2, $3, $4, $5) RETURNING id`,
+      [sow.id, sow.hall_id, vet, eventDate, JSON.stringify({ boar_id: boarIds[Math.floor(Math.random() * boarIds.length)], method: 'AI', dose: '80ml' })]
+    );
+    if (res.rows[0]) eventIds.push(res.rows[0].id);
+  }
+
+  // Pregnancy check positive events for pregnant_confirmed + farrowing + lactating sows
+  const pregSows = allSowIds.filter(s => ['pregnant_confirmed', 'in_farrowing', 'lactating'].includes(s.status));
+  for (const sow of pregSows) {
+    const daysAgo = sow.status === 'pregnant_confirmed' ? Math.floor(Math.random() * 10) + 5
+      : sow.status === 'in_farrowing' ? Math.floor(Math.random() * 10) + 80
+      : Math.floor(Math.random() * 10) + 90;
+    const eventDate = new Date(now - daysAgo * day).toISOString().split('T')[0];
+    const vet = vetIds[Math.floor(Math.random() * vetIds.length)];
+    await db.query(
+      `INSERT INTO events (event_type, animal_id, hall_id, performed_by, event_date, details)
+       VALUES ('pregnancy_check_positive', $1, $2, $3, $4, '{"method":"ultrasound","day":28}')`,
+      [sow.id, sow.hall_id, vet, eventDate]
+    );
+  }
+
+  // Farrowing events + litters for lactating sows
+  const lactatingSows = allSowIds.filter(s => s.status === 'lactating');
+  const litterIds = [];
+  for (const sow of lactatingSows) {
+    const daysAgo = Math.floor(Math.random() * 18) + 2; // 2-20 days ago
+    const eventDate = new Date(now - daysAgo * day).toISOString().split('T')[0];
+    const vet = vetIds[Math.floor(Math.random() * vetIds.length)];
+    const bornAlive = Math.floor(Math.random() * 6) + 10; // 10-15
+    const stillborn = Math.floor(Math.random() * 3);
+    const mummified = Math.floor(Math.random() * 2);
+    const fRes = await db.query(
+      `INSERT INTO events (event_type, animal_id, hall_id, performed_by, event_date, details)
+       VALUES ('farrowing', $1, $2, $3, $4, $5) RETURNING id`,
+      [sow.id, sow.hall_id, vet, eventDate, JSON.stringify({ born_alive: bornAlive, stillborn, mummified, duration_hours: (Math.random() * 4 + 2).toFixed(1) })]
+    );
+    if (fRes.rows[0]) {
+      const lRes = await db.query(
+        `INSERT INTO litters (birth_sow_id, farrowing_event_id, parity_number, born_alive, stillborn, mummified, birth_date)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+        [sow.id, fRes.rows[0].id, sow.parity, bornAlive, stillborn, mummified, eventDate]
+      );
+      if (lRes.rows[0]) litterIds.push(lRes.rows[0].id);
+    }
+  }
+
+  // ─── Animal Groups: weaner + finisher batches ──────────────────────
+  const groupData = [
+    { name: 'Партида W-2026-01', cat: 'weaner', hall: nurHalls[0]?.id, entry: 180, current: 175, entryW: 7.2, currentW: 18.5, daysAgo: 35, slaughterDays: 0 },
+    { name: 'Партида W-2026-02', cat: 'weaner', hall: nurHalls[1]?.id, entry: 200, current: 196, entryW: 6.8, currentW: 12.3, daysAgo: 18, slaughterDays: 0 },
+    { name: 'Партида W-2026-03', cat: 'weaner', hall: nurHalls[2]?.id, entry: 160, current: 158, entryW: 7.5, currentW: 8.1, daysAgo: 5, slaughterDays: 0 },
+    { name: 'Партида F-2025-08', cat: 'finisher', hall: finHalls[0]?.id, entry: 250, current: 245, entryW: 25, currentW: 85.0, daysAgo: 90, slaughterDays: 30 },
+    { name: 'Партида F-2025-09', cat: 'finisher', hall: finHalls[1]?.id, entry: 230, current: 228, entryW: 24, currentW: 72.5, daysAgo: 70, slaughterDays: 50 },
+    { name: 'Партида F-2025-10', cat: 'finisher', hall: finHalls[2]?.id, entry: 280, current: 276, entryW: 26, currentW: 58.0, daysAgo: 50, slaughterDays: 70 },
+    { name: 'Партида F-2025-11', cat: 'finisher', hall: finHalls[3]?.id, entry: 260, current: 255, entryW: 25, currentW: 42.0, daysAgo: 30, slaughterDays: 90 },
+    { name: 'Партида F-2026-01', cat: 'finisher', hall: finHalls[4]?.id, entry: 220, current: 218, entryW: 23, currentW: 30.5, daysAgo: 14, slaughterDays: 106 }
+  ];
+  const groupIds = [];
+  for (const g of groupData) {
+    if (!g.hall) continue;
+    const entryDate = new Date(now - g.daysAgo * day).toISOString().split('T')[0];
+    const slaughterDate = g.slaughterDays > 0 ? new Date(now + g.slaughterDays * day).toISOString().split('T')[0] : null;
+    const res = await db.query(
+      `INSERT INTO animal_groups (group_name, category, hall_id, entry_date, entry_count, current_count, entry_weight_avg_kg, current_weight_avg_kg, target_slaughter_date, source_litter_ids)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) ON CONFLICT DO NOTHING RETURNING id`,
+      [g.name, g.cat, g.hall, entryDate, g.entry, g.current, g.entryW, g.currentW, slaughterDate, JSON.stringify(litterIds.slice(0, 3))]
+    );
+    if (res.rows[0]) groupIds.push({ id: res.rows[0].id, ...g });
+    // Update hall occupancy
+    await db.query('UPDATE halls SET current_occupancy = $1 WHERE id = $2', [g.current, g.hall]);
+  }
+
+  // Update hall occupancy for sows
+  const sowHallCounts = {};
+  for (const s of allSowIds) {
+    sowHallCounts[s.hall_id] = (sowHallCounts[s.hall_id] || 0) + 1;
+  }
+  for (const [hid, cnt] of Object.entries(sowHallCounts)) {
+    await db.query('UPDATE halls SET current_occupancy = GREATEST(current_occupancy, $1) WHERE id = $2', [cnt, hid]);
+  }
+
+  // ─── Sales: recent completed sales ────────────────────────────────
+  const buyers = ['Градус АД', 'Тандем ООД', 'Меском ЕООД', 'Родопа Булгарикум', 'Кен ООД'];
+  const salesData = [
+    { type: 'finisher', buyer: buyers[0], heads: 120, weight: 13200, ppk: 1.85, daysAgo: 5 },
+    { type: 'finisher', buyer: buyers[1], heads: 95, weight: 10450, ppk: 1.82, daysAgo: 12 },
+    { type: 'finisher', buyer: buyers[2], heads: 150, weight: 16500, ppk: 1.88, daysAgo: 20 },
+    { type: 'weaner', buyer: buyers[3], heads: 200, weight: 4800, ppk: 0, daysAgo: 8, pricePerHead: 42 },
+    { type: 'culled', buyer: buyers[4], heads: 8, weight: 1520, ppk: 0.95, daysAgo: 15 },
+    { type: 'finisher', buyer: buyers[0], heads: 110, weight: 12100, ppk: 1.86, daysAgo: 30 },
+    { type: 'finisher', buyer: buyers[1], heads: 200, weight: 22000, ppk: 1.84, daysAgo: 45 },
+    { type: 'weaner', buyer: buyers[3], heads: 180, weight: 4320, ppk: 0, daysAgo: 38, pricePerHead: 40 }
+  ];
+  for (const s of salesData) {
+    const saleDate = new Date(now - s.daysAgo * day).toISOString().split('T')[0];
+    const monthKey = saleDate.substring(0, 7);
+    const total = s.pricePerHead ? s.pricePerHead * s.heads : s.ppk * s.weight;
+    const gid = s.type === 'finisher' ? (groupIds.find(g => g.cat === 'finisher')?.id || null) : null;
+    await db.query(
+      `INSERT INTO sales (sale_date, sale_type, group_id, buyer_name, head_count, total_weight_kg, price_per_kg, price_per_head, total_amount_eur, invoice_number, notes, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+      [saleDate, s.type, gid, s.buyer, s.heads, s.weight, s.ppk || null, s.pricePerHead || null, Math.round(total * 100) / 100, `INV-${saleDate.replace(/-/g, '')}-${Math.floor(Math.random() * 900) + 100}`, null, adminId]
+    );
+  }
+
+  // ─── Expense entries: monthly operational expenses ─────────────────
+  const months = ['2025-10', '2025-11', '2025-12', '2026-01', '2026-02'];
+  for (const mk of months) {
+    const d = mk + '-15';
+    const allSectors = await db.query('SELECT id, code FROM sectors ORDER BY id');
+    const expenseItems = [
+      { cat: 'utilities', sub: 'electricity', desc: 'Ел. енергия', amount: 4200 + Math.random() * 800, sector: 'FAR' },
+      { cat: 'utilities', sub: 'water', desc: 'Водоснабдяване', amount: 1800 + Math.random() * 400, sector: 'FAR' },
+      { cat: 'utilities', sub: 'heating', desc: 'Отопление', amount: 2500 + Math.random() * 1500, sector: 'NUR' },
+      { cat: 'maintenance', sub: 'equipment', desc: 'Поддръжка оборудване', amount: 800 + Math.random() * 600, sector: 'FIN' },
+      { cat: 'maintenance', sub: 'buildings', desc: 'Ремонт сгради', amount: 500 + Math.random() * 1000, sector: 'PREG' },
+      { cat: 'transport', sub: 'fuel', desc: 'Гориво транспорт', amount: 3200 + Math.random() * 800, sector: null },
+      { cat: 'admin', sub: 'insurance', desc: 'Застраховки', amount: 1500, sector: null },
+      { cat: 'admin', sub: 'consulting', desc: 'Ветеринарни консултации', amount: 600 + Math.random() * 400, sector: null }
+    ];
+    for (const exp of expenseItems) {
+      const sId = exp.sector ? allSectors.rows.find(s => s.code === exp.sector)?.id || null : null;
+      await db.query(
+        `INSERT INTO expense_entries (entry_date, month_key, category, subcategory, description, amount_eur, sector_id, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [d, mk, exp.cat, exp.sub, exp.desc, Math.round(exp.amount * 100) / 100, sId, adminId]
+      );
+    }
+  }
+
+  // ─── Water consumption readings (last 30 days) ────────────────────
+  for (let daysBack = 0; daysBack < 30; daysBack++) {
+    const readingDate = new Date(now - daysBack * day).toISOString().split('T')[0];
+    // Pick 5 random halls for daily readings
+    const sampleHalls = hallRows.rows.sort(() => Math.random() - 0.5).slice(0, 8);
+    for (const h of sampleHalls) {
+      const animalCount = Math.floor(Math.random() * 200) + 50;
+      const litersPerAnimal = 8 + Math.random() * 12; // 8-20 L/animal/day
+      const consumption = (animalCount * litersPerAnimal) / 1000; // m³
+      await db.query(
+        `INSERT INTO water_consumption (hall_id, reading_date, consumption_m3, animal_count, liters_per_animal, recorded_by)
+         VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING`,
+        [h.id, readingDate, Math.round(consumption * 100) / 100, animalCount, Math.round(litersPerAnimal * 10) / 10, adminId]
+      );
+    }
+  }
+
+  // ─── KPI snapshots (last 4 months) ────────────────────────────────
+  const kpiMonths = ['2025-11-01', '2025-12-01', '2026-01-01', '2026-02-01'];
+  const kpiData = [
+    { name: 'farrowing_rate', values: [88.5, 87.2, 89.1, 90.3] },
+    { name: 'born_alive_avg', values: [13.2, 13.5, 13.1, 13.8] },
+    { name: 'weaned_per_sow_year', values: [28.5, 29.0, 28.8, 29.2] },
+    { name: 'mortality_pct_nursery', values: [3.2, 2.8, 3.1, 2.5] },
+    { name: 'mortality_pct_finishing', values: [1.8, 2.1, 1.5, 1.3] },
+    { name: 'fcr_finishing', values: [2.45, 2.38, 2.42, 2.35] },
+    { name: 'adg_finishing', values: [820, 835, 828, 845] },
+    { name: 'avg_slaughter_weight', values: [110.5, 111.2, 109.8, 112.0] },
+    { name: 'feed_cost_per_kg', values: [0.92, 0.89, 0.91, 0.88] },
+    { name: 'labour_cost_per_kg', values: [0.15, 0.14, 0.15, 0.14] }
+  ];
+  for (const kpi of kpiData) {
+    for (let i = 0; i < kpiMonths.length; i++) {
+      await db.query(
+        `INSERT INTO kpi_snapshots (snapshot_date, kpi_name, kpi_value, scope_type)
+         VALUES ($1, $2, $3, 'farm') ON CONFLICT DO NOTHING`,
+        [kpiMonths[i], kpi.name, kpi.values[i]]
+      );
+    }
+  }
+
+  // ─── Disinfection logs (recent vehicle washes) ────────────────────
+  const vehicles = await db.query('SELECT id FROM vehicles LIMIT 5');
+  for (const v of vehicles.rows) {
+    for (let d = 0; d < 3; d++) {
+      const logDate = new Date(now - d * 3 * day).toISOString();
+      await db.query(
+        `INSERT INTO disinfection_logs (vehicle_id, wash_confirmed, disinfect_confirmed, performed_by, created_at)
+         VALUES ($1, true, true, $2, $3)`,
+        [v.id, driverIds[d % driverIds.length] || adminId, logDate]
+      );
+    }
+  }
+
+  // ─── Monthly P&L snapshots ────────────────────────────────────────
+  for (const mk of months) {
+    const rev = 85000 + Math.random() * 30000;
+    const feed = 35000 + Math.random() * 8000;
+    const salary = 22000 + Math.random() * 3000;
+    const vet = 3500 + Math.random() * 1500;
+    const other = 8000 + Math.random() * 4000;
+    const totalCost = feed + salary + vet + other;
+    const profit = rev - totalCost;
+    await db.query(
+      `INSERT INTO monthly_pnl_snapshots (month_key, revenue_eur, feed_cost_eur, salary_cost_eur, vet_cost_eur, other_cost_eur, total_cost_eur, operating_profit_eur, gross_margin_pct, operating_margin_pct, total_kg_sold, total_heads_sold, cost_per_kg)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) ON CONFLICT (month_key) DO NOTHING`,
+      [mk, Math.round(rev), Math.round(feed), Math.round(salary), Math.round(vet), Math.round(other), Math.round(totalCost), Math.round(profit),
+       Math.round((rev - feed) / rev * 10000) / 100, Math.round(profit / rev * 10000) / 100,
+       Math.floor(rev / 1.85), Math.floor(rev / 1.85 / 110), Math.round(totalCost / (rev / 1.85) * 100) / 100]
+    );
+  }
+
+  return ok({ message: 'Seed data заредени: 5 сектора, 25 халета, 15 суровини, 4 рецепти, 6 шаблона заплати, 10 медикамента, 10 карентни правила, 3 бонус правила, 7 шофьори + 22 персонал (всички роли), 8 МПС, 25 силоза, 110 свине майки + 5 нерези, 8 партиди животни, 8 продажби, 40 разходи, 240 водни отчети, 40 KPI, 5 P&L, 1 admin (admin@pigtech.bg / admin123)' });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PHASE 2: SALES
 // ═══════════════════════════════════════════════════════════════════════════
 
-async function salesRecord(db, { sale_date, sale_type, group_id, animal_id, buyer_name, head_count, total_weight_kg, price_per_kg, price_per_head, total_amount_bgn, invoice_number, notes, created_by }) {
+async function salesRecord(db, { sale_date, sale_type, group_id, animal_id, buyer_name, head_count, total_weight_kg, price_per_kg, price_per_head, total_amount_eur, invoice_number, notes, created_by }) {
   const validTypes = ['finisher', 'weaner', 'culled'];
   if (!validTypes.includes(sale_type)) return err(400, `Невалиден тип продажба. Валидни: ${validTypes.join(', ')}`);
 
   // Calculate total if not provided
-  let total = total_amount_bgn;
+  let total = total_amount_eur;
   if (!total) {
     if (sale_type === 'weaner' && price_per_head && head_count) {
       total = price_per_head * head_count;
@@ -1906,7 +2228,7 @@ async function salesRecord(db, { sale_date, sale_type, group_id, animal_id, buye
 
   const saleDate = sale_date || new Date().toISOString().split('T')[0];
   const result = await db.query(
-    `INSERT INTO sales (sale_date, sale_type, group_id, animal_id, buyer_name, head_count, total_weight_kg, price_per_kg, price_per_head, total_amount_bgn, invoice_number, notes, created_by)
+    `INSERT INTO sales (sale_date, sale_type, group_id, animal_id, buyer_name, head_count, total_weight_kg, price_per_kg, price_per_head, total_amount_eur, invoice_number, notes, created_by)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
     [saleDate, sale_type, group_id || null, animal_id || null, buyer_name || null,
      head_count || 0, total_weight_kg || null, price_per_kg || null, price_per_head || null,
@@ -1961,7 +2283,7 @@ async function salesSummary(db, { from_date, to_date, group_by }) {
   // Overall summary
   const overall = await db.query(
     `SELECT sale_type, COUNT(*) as sale_count, SUM(head_count) as total_heads,
-            SUM(total_weight_kg) as total_kg, SUM(total_amount_bgn) as total_bgn,
+            SUM(total_weight_kg) as total_kg, SUM(total_amount_eur) as total_eur,
             AVG(price_per_kg) as avg_price_per_kg
      FROM sales WHERE sale_date >= $1 AND sale_date <= $2
      GROUP BY sale_type ORDER BY sale_type`, [fd, td]);
@@ -1969,12 +2291,12 @@ async function salesSummary(db, { from_date, to_date, group_by }) {
   // Total
   const total = await db.query(
     `SELECT COUNT(*) as sale_count, SUM(head_count) as total_heads,
-            SUM(total_weight_kg) as total_kg, SUM(total_amount_bgn) as total_bgn
+            SUM(total_weight_kg) as total_kg, SUM(total_amount_eur) as total_eur
      FROM sales WHERE sale_date >= $1 AND sale_date <= $2`, [fd, td]);
 
   // Monthly trend
   const monthly = await db.query(
-    `SELECT TO_CHAR(sale_date, 'YYYY-MM') as month, SUM(total_amount_bgn) as revenue,
+    `SELECT TO_CHAR(sale_date, 'YYYY-MM') as month, SUM(total_amount_eur) as revenue,
             SUM(head_count) as heads, SUM(total_weight_kg) as kg
      FROM sales WHERE sale_date >= $1 AND sale_date <= $2
      GROUP BY TO_CHAR(sale_date, 'YYYY-MM') ORDER BY month`, [fd, td]);
@@ -1993,19 +2315,19 @@ async function salesDelete(db, { id }) {
 // PHASE 2: EXPENSES
 // ═══════════════════════════════════════════════════════════════════════════
 
-async function expensesRecord(db, { entry_date, category, subcategory, description, amount_bgn, sector_id, hall_id, related_entity_type, related_entity_id, notes, created_by }) {
+async function expensesRecord(db, { entry_date, category, subcategory, description, amount_eur, sector_id, hall_id, related_entity_type, related_entity_id, notes, created_by }) {
   const validCats = ['feed', 'salary', 'veterinary', 'other'];
   if (!validCats.includes(category)) return err(400, `Невалидна категория. Валидни: ${validCats.join(', ')}`);
-  if (!amount_bgn || amount_bgn <= 0) return err(400, 'Сумата трябва да е положително число');
+  if (!amount_eur || amount_eur <= 0) return err(400, 'Сумата трябва да е положително число');
 
   const eDate = entry_date || new Date().toISOString().split('T')[0];
   const monthKey = eDate.substring(0, 7);
 
   const result = await db.query(
-    `INSERT INTO expense_entries (entry_date, month_key, category, subcategory, description, amount_bgn, sector_id, hall_id, related_entity_type, related_entity_id, notes, created_by)
+    `INSERT INTO expense_entries (entry_date, month_key, category, subcategory, description, amount_eur, sector_id, hall_id, related_entity_type, related_entity_id, notes, created_by)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
     [eDate, monthKey, category, subcategory || null, description || null,
-     Math.round(amount_bgn * 100) / 100, sector_id || null, hall_id || null,
+     Math.round(amount_eur * 100) / 100, sector_id || null, hall_id || null,
      related_entity_type || null, related_entity_id || null, notes || null, created_by || null]
   );
   return ok({ expense: result.rows[0] });
@@ -2037,25 +2359,25 @@ async function expensesSummary(db, { from_date, to_date, group_by }) {
   const td = to_date || new Date().toISOString().split('T')[0];
 
   const byCategory = await db.query(
-    `SELECT category, COUNT(*) as entry_count, SUM(amount_bgn) as total_bgn
+    `SELECT category, COUNT(*) as entry_count, SUM(amount_eur) as total_eur
      FROM expense_entries WHERE entry_date >= $1 AND entry_date <= $2
      GROUP BY category ORDER BY category`, [fd, td]);
 
   const bySector = await db.query(
-    `SELECT s.name as sector_name, e.category, SUM(e.amount_bgn) as total_bgn
+    `SELECT s.name as sector_name, e.category, SUM(e.amount_eur) as total_eur
      FROM expense_entries e LEFT JOIN sectors s ON s.id = e.sector_id
      WHERE e.entry_date >= $1 AND e.entry_date <= $2
      GROUP BY s.name, e.category ORDER BY s.name, e.category`, [fd, td]);
 
   const monthly = await db.query(
-    `SELECT month_key, category, SUM(amount_bgn) as total_bgn
+    `SELECT month_key, category, SUM(amount_eur) as total_eur
      FROM expense_entries WHERE entry_date >= $1 AND entry_date <= $2
      GROUP BY month_key, category ORDER BY month_key, category`, [fd, td]);
 
   const total = await db.query(
-    `SELECT SUM(amount_bgn) as total_bgn FROM expense_entries WHERE entry_date >= $1 AND entry_date <= $2`, [fd, td]);
+    `SELECT SUM(amount_eur) as total_eur FROM expense_entries WHERE entry_date >= $1 AND entry_date <= $2`, [fd, td]);
 
-  return ok({ summary: { from: fd, to: td, byCategory: byCategory.rows, bySector: bySector.rows, monthly: monthly.rows, total: parseFloat(total.rows[0]?.total_bgn || 0) } });
+  return ok({ summary: { from: fd, to: td, byCategory: byCategory.rows, bySector: bySector.rows, monthly: monthly.rows, total: parseFloat(total.rows[0]?.total_eur || 0) } });
 }
 
 async function expensesDelete(db, { id }) {
@@ -2070,16 +2392,16 @@ async function expensesDelete(db, { id }) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function salaryTemplatesList(db) {
-  const result = await db.query('SELECT * FROM salary_templates ORDER BY base_salary_bgn DESC');
+  const result = await db.query('SELECT * FROM salary_templates ORDER BY base_salary_eur DESC');
   return ok({ templates: result.rows });
 }
 
-async function salaryTemplatesUpsert(db, { role, base_salary_bgn }) {
-  if (!role || !base_salary_bgn) return err(400, 'Роля и базова заплата са задължителни');
+async function salaryTemplatesUpsert(db, { role, base_salary_eur }) {
+  if (!role || !base_salary_eur) return err(400, 'Роля и базова заплата са задължителни');
   const result = await db.query(
-    `INSERT INTO salary_templates (role, base_salary_bgn) VALUES ($1, $2)
-     ON CONFLICT (role) DO UPDATE SET base_salary_bgn = $2, updated_at = NOW() RETURNING *`,
-    [role, base_salary_bgn]
+    `INSERT INTO salary_templates (role, base_salary_eur) VALUES ($1, $2)
+     ON CONFLICT (role) DO UPDATE SET base_salary_eur = $2, updated_at = NOW() RETURNING *`,
+    [role, base_salary_eur]
   );
   return ok({ template: result.rows[0] });
 }
@@ -2101,7 +2423,7 @@ async function salaryGenerate(db, { month_key, override }) {
 
   // Get active personnel with salary templates
   const personnel = await db.query(
-    `SELECT p.id, p.name, p.role, COALESCE(st.base_salary_bgn, 0) as salary
+    `SELECT p.id, p.name, p.role, COALESCE(st.base_salary_eur, 0) as salary
      FROM personnel p
      LEFT JOIN salary_templates st ON st.role = p.role AND st.is_active = true
      WHERE p.is_active = true`
@@ -2125,14 +2447,14 @@ async function salaryGenerate(db, { month_key, override }) {
       const splitAmount = Math.round(p.salary / sectors.length * 100) / 100;
       for (const sid of sectors) {
         await db.query(
-          `INSERT INTO expense_entries (entry_date, month_key, category, subcategory, description, amount_bgn, sector_id, related_entity_type, related_entity_id)
+          `INSERT INTO expense_entries (entry_date, month_key, category, subcategory, description, amount_eur, sector_id, related_entity_type, related_entity_id)
            VALUES ($1, $2, 'salary', 'base', $3, $4, $5, 'personnel', $6)`,
           [entryDate, month_key, `${p.name} (${p.role})`, splitAmount, sid, p.id]
         );
       }
     } else {
       await db.query(
-        `INSERT INTO expense_entries (entry_date, month_key, category, subcategory, description, amount_bgn, sector_id, related_entity_type, related_entity_id)
+        `INSERT INTO expense_entries (entry_date, month_key, category, subcategory, description, amount_eur, sector_id, related_entity_type, related_entity_id)
          VALUES ($1, $2, 'salary', 'base', $3, $4, $5, 'personnel', $6)`,
         [entryDate, month_key, `${p.name} (${p.role})`, p.salary, sectorId, p.id]
       );
@@ -2141,20 +2463,20 @@ async function salaryGenerate(db, { month_key, override }) {
     totalAmount += parseFloat(p.salary);
   }
 
-  return ok({ message: `Генерирани ${totalGenerated} записа за ${month_key}`, count: totalGenerated, total_bgn: Math.round(totalAmount * 100) / 100 });
+  return ok({ message: `Генерирани ${totalGenerated} записа за ${month_key}`, count: totalGenerated, total_eur: Math.round(totalAmount * 100) / 100 });
 }
 
 async function salarySummary(db, { month_key }) {
   if (!month_key) return err(400, 'month_key е задължително');
   const byRole = await db.query(
-    `SELECT p.role, COUNT(*) as count, SUM(e.amount_bgn) as total_bgn
+    `SELECT p.role, COUNT(*) as count, SUM(e.amount_eur) as total_eur
      FROM expense_entries e
      JOIN personnel p ON p.id = e.related_entity_id AND e.related_entity_type = 'personnel'
      WHERE e.month_key = $1 AND e.category = 'salary'
-     GROUP BY p.role ORDER BY total_bgn DESC`, [month_key]);
+     GROUP BY p.role ORDER BY total_eur DESC`, [month_key]);
   const total = await db.query(
-    `SELECT SUM(amount_bgn) as total_bgn, COUNT(*) as count FROM expense_entries WHERE month_key = $1 AND category = 'salary'`, [month_key]);
-  return ok({ summary: { month: month_key, byRole: byRole.rows, total: parseFloat(total.rows[0]?.total_bgn || 0), count: parseInt(total.rows[0]?.count || 0) } });
+    `SELECT SUM(amount_eur) as total_eur, COUNT(*) as count FROM expense_entries WHERE month_key = $1 AND category = 'salary'`, [month_key]);
+  return ok({ summary: { month: month_key, byRole: byRole.rows, total: parseFloat(total.rows[0]?.total_eur || 0), count: parseInt(total.rows[0]?.count || 0) } });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2170,13 +2492,13 @@ async function medicineList(db, { is_active }) {
   return ok({ medicines: result.rows });
 }
 
-async function medicineUpsert(db, { id, name, name_bg, unit, price_per_unit_bgn, current_stock, reorder_threshold, supplier, is_active }) {
+async function medicineUpsert(db, { id, name, name_bg, unit, price_per_unit_eur, current_stock, reorder_threshold, supplier, is_active }) {
   if (id) {
     const fields = []; const params = []; let idx = 1;
     if (name !== undefined) { fields.push(`name = $${idx++}`); params.push(name); }
     if (name_bg !== undefined) { fields.push(`name_bg = $${idx++}`); params.push(name_bg); }
     if (unit !== undefined) { fields.push(`unit = $${idx++}`); params.push(unit); }
-    if (price_per_unit_bgn !== undefined) { fields.push(`price_per_unit_bgn = $${idx++}`); params.push(price_per_unit_bgn); }
+    if (price_per_unit_eur !== undefined) { fields.push(`price_per_unit_eur = $${idx++}`); params.push(price_per_unit_eur); }
     if (current_stock !== undefined) { fields.push(`current_stock = $${idx++}`); params.push(current_stock); }
     if (reorder_threshold !== undefined) { fields.push(`reorder_threshold = $${idx++}`); params.push(reorder_threshold); }
     if (supplier !== undefined) { fields.push(`supplier = $${idx++}`); params.push(supplier); }
@@ -2189,9 +2511,9 @@ async function medicineUpsert(db, { id, name, name_bg, unit, price_per_unit_bgn,
   }
   if (!name || !unit) return err(400, 'Име и мерна единица са задължителни');
   const result = await db.query(
-    `INSERT INTO medicine_catalog (name, name_bg, unit, price_per_unit_bgn, current_stock, reorder_threshold, supplier)
+    `INSERT INTO medicine_catalog (name, name_bg, unit, price_per_unit_eur, current_stock, reorder_threshold, supplier)
      VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-    [name, name_bg || null, unit, price_per_unit_bgn || 0, current_stock || 0, reorder_threshold || 0, supplier || null]
+    [name, name_bg || null, unit, price_per_unit_eur || 0, current_stock || 0, reorder_threshold || 0, supplier || null]
   );
   return ok({ medicine: result.rows[0] });
 }
@@ -2211,7 +2533,7 @@ async function medicineUse(db, { medicine_id, quantity, animal_id, event_id, not
   await db.query('UPDATE medicine_catalog SET current_stock = current_stock - $1, updated_at = NOW() WHERE id = $2', [quantity, medicine_id]);
 
   // Calculate cost
-  const costBgn = Math.round(quantity * parseFloat(medicine.price_per_unit_bgn) * 100) / 100;
+  const costBgn = Math.round(quantity * parseFloat(medicine.price_per_unit_eur) * 100) / 100;
 
   // Create expense entry
   const entryDate = new Date().toISOString().split('T')[0];
@@ -2226,7 +2548,7 @@ async function medicineUse(db, { medicine_id, quantity, animal_id, event_id, not
   }
 
   await db.query(
-    `INSERT INTO expense_entries (entry_date, month_key, category, subcategory, description, amount_bgn, sector_id, related_entity_type, related_entity_id, created_by)
+    `INSERT INTO expense_entries (entry_date, month_key, category, subcategory, description, amount_eur, sector_id, related_entity_type, related_entity_id, created_by)
      VALUES ($1, $2, 'veterinary', 'medicine', $3, $4, $5, 'medicine', $6, $7)`,
     [entryDate, monthKey, `${quantity} ${medicine.unit} ${medicine.name_bg || medicine.name}`,
      costBgn, sectorId, medicine_id, created_by || null]
@@ -2240,7 +2562,7 @@ async function medicineUse(db, { medicine_id, quantity, animal_id, event_id, not
       'medicine', medicine_id, 'medicine_stock', parseFloat(updated.rows[0].current_stock), parseFloat(updated.rows[0].reorder_threshold));
   }
 
-  return ok({ used: { medicine_id, quantity, cost_bgn: costBgn, remaining_stock: parseFloat(updated.rows[0].current_stock) } });
+  return ok({ used: { medicine_id, quantity, cost_eur: costBgn, remaining_stock: parseFloat(updated.rows[0].current_stock) } });
 }
 
 async function medicineRestock(db, { medicine_id, quantity, notes, created_by }) {
@@ -2322,12 +2644,12 @@ async function reportsPnl(db, { month_key, from_date, to_date }) {
 
   // Revenue
   const revenue = await db.query(
-    `SELECT COALESCE(SUM(total_amount_bgn), 0) as total FROM sales WHERE sale_date >= $1 AND sale_date <= $2`, [fd, td]);
+    `SELECT COALESCE(SUM(total_amount_eur), 0) as total FROM sales WHERE sale_date >= $1 AND sale_date <= $2`, [fd, td]);
   const revenueBgn = parseFloat(revenue.rows[0].total);
 
   // Expenses by category
   const expenses = await db.query(
-    `SELECT category, COALESCE(SUM(amount_bgn), 0) as total FROM expense_entries
+    `SELECT category, COALESCE(SUM(amount_eur), 0) as total FROM expense_entries
      WHERE entry_date >= $1 AND entry_date <= $2 GROUP BY category`, [fd, td]);
 
   const feedCost = parseFloat(expenses.rows.find(r => r.category === 'feed')?.total || 0);
@@ -2377,7 +2699,7 @@ async function reportsPnlBySector(db, { month_key }) {
 
   for (const sector of sectors.rows) {
     const expenses = await db.query(
-      `SELECT category, COALESCE(SUM(amount_bgn), 0) as total FROM expense_entries
+      `SELECT category, COALESCE(SUM(amount_eur), 0) as total FROM expense_entries
        WHERE entry_date >= $1 AND entry_date <= $2 AND sector_id = $3 GROUP BY category`, [fd, td, sector.id]);
 
     result.push({
@@ -2391,13 +2713,13 @@ async function reportsPnlBySector(db, { month_key }) {
 
   // Revenue attribution: finisher sales → FIN sector, weaner sales → NUR sector
   const finSales = await db.query(
-    `SELECT COALESCE(SUM(total_amount_bgn), 0) as total FROM sales
+    `SELECT COALESCE(SUM(total_amount_eur), 0) as total FROM sales
      WHERE sale_date >= $1 AND sale_date <= $2 AND sale_type = 'finisher'`, [fd, td]);
   const weanerSales = await db.query(
-    `SELECT COALESCE(SUM(total_amount_bgn), 0) as total FROM sales
+    `SELECT COALESCE(SUM(total_amount_eur), 0) as total FROM sales
      WHERE sale_date >= $1 AND sale_date <= $2 AND sale_type = 'weaner'`, [fd, td]);
   const culledSales = await db.query(
-    `SELECT COALESCE(SUM(total_amount_bgn), 0) as total FROM sales
+    `SELECT COALESCE(SUM(total_amount_eur), 0) as total FROM sales
      WHERE sale_date >= $1 AND sale_date <= $2 AND sale_type = 'culled'`, [fd, td]);
 
   const finSector = result.find(r => r.sector_code === 'FIN');
@@ -2432,12 +2754,12 @@ async function reportsPnlByBatch(db, { group_id, from_date, to_date }) {
   for (const g of groups.rows) {
     // Revenue from sales linked to this group
     const salesRes = await db.query(
-      'SELECT COALESCE(SUM(total_amount_bgn), 0) as revenue FROM sales WHERE group_id = $1', [g.id]);
+      'SELECT COALESCE(SUM(total_amount_eur), 0) as revenue FROM sales WHERE group_id = $1', [g.id]);
     const revenue = parseFloat(salesRes.rows[0].revenue);
 
     // Feed cost: sum of expense entries linked to batches in this group's hall during the group's lifetime
     const feedCost = await db.query(
-      `SELECT COALESCE(SUM(e.amount_bgn), 0) as total FROM expense_entries e
+      `SELECT COALESCE(SUM(e.amount_eur), 0) as total FROM expense_entries e
        WHERE e.category = 'feed' AND e.entry_date >= $1 AND e.entry_date <= $2
        AND (e.hall_id = $3 OR e.sector_id = (SELECT sector_id FROM halls WHERE id = $3))`,
       [g.entry_date, g.exit_date || new Date().toISOString().split('T')[0], g.hall_id]);
@@ -2469,11 +2791,11 @@ async function reportsPnlSnapshot(db, { month_key }) {
   const pnlData = JSON.parse(pnlRes.body).pnl;
 
   await db.query(
-    `INSERT INTO monthly_pnl_snapshots (month_key, revenue_bgn, feed_cost_bgn, salary_cost_bgn, vet_cost_bgn, other_cost_bgn, total_cost_bgn, operating_profit_bgn, gross_margin_pct, operating_margin_pct, total_kg_sold, total_heads_sold, cost_per_kg)
+    `INSERT INTO monthly_pnl_snapshots (month_key, revenue_eur, feed_cost_eur, salary_cost_eur, vet_cost_eur, other_cost_eur, total_cost_eur, operating_profit_eur, gross_margin_pct, operating_margin_pct, total_kg_sold, total_heads_sold, cost_per_kg)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
      ON CONFLICT (month_key) DO UPDATE SET
-       revenue_bgn = $2, feed_cost_bgn = $3, salary_cost_bgn = $4, vet_cost_bgn = $5,
-       other_cost_bgn = $6, total_cost_bgn = $7, operating_profit_bgn = $8,
+       revenue_eur = $2, feed_cost_eur = $3, salary_cost_eur = $4, vet_cost_eur = $5,
+       other_cost_eur = $6, total_cost_eur = $7, operating_profit_eur = $8,
        gross_margin_pct = $9, operating_margin_pct = $10, total_kg_sold = $11,
        total_heads_sold = $12, cost_per_kg = $13, snapshot_date = NOW()`,
     [month_key, pnlData.revenue, pnlData.feed_cost, pnlData.salary_cost, pnlData.vet_cost,
@@ -2621,7 +2943,7 @@ async function reportsFeedEfficiency(db, { from_date, to_date, recipe_id }) {
   const costData = await db.query(
     `SELECT TO_CHAR(fpb.batch_date, 'YYYY-MM') as month,
             SUM(fpb.quantity_tons) as tons,
-            SUM(e.amount_bgn) as cost_bgn
+            SUM(e.amount_eur) as cost_eur
      FROM feed_production_batches fpb
      LEFT JOIN expense_entries e ON e.related_entity_type = 'feed_batch' AND e.related_entity_id = fpb.id
      WHERE fpb.batch_date >= $1 AND fpb.batch_date <= $2
@@ -2636,8 +2958,8 @@ async function reportsFeedEfficiency(db, { from_date, to_date, recipe_id }) {
 
   const costByMonth = costData.rows.map(r => ({
     month: r.month, tons: parseFloat(r.tons),
-    cost_bgn: parseFloat(r.cost_bgn || 0),
-    cost_per_ton: parseFloat(r.tons) > 0 ? Math.round(parseFloat(r.cost_bgn || 0) / parseFloat(r.tons) * 100) / 100 : 0
+    cost_eur: parseFloat(r.cost_eur || 0),
+    cost_per_ton: parseFloat(r.tons) > 0 ? Math.round(parseFloat(r.cost_eur || 0) / parseFloat(r.tons) * 100) / 100 : 0
   }));
 
   return ok({ feedEfficiency: { period: { from: fd, to: td }, byRecipe: months, costByMonth } });
@@ -2749,7 +3071,7 @@ async function reportsFinancialKpis(db) {
 
   // Total revenue (365 days)
   const revenueRes = await db.query(
-    `SELECT COALESCE(SUM(total_amount_bgn), 0) as total, COALESCE(SUM(total_weight_kg), 0) as total_kg,
+    `SELECT COALESCE(SUM(total_amount_eur), 0) as total, COALESCE(SUM(total_weight_kg), 0) as total_kg,
             COALESCE(SUM(head_count), 0) as total_heads
      FROM sales WHERE sale_date >= $1`, [oneYearAgo]);
   const revenue = parseFloat(revenueRes.rows[0].total);
@@ -2758,7 +3080,7 @@ async function reportsFinancialKpis(db) {
 
   // Expenses by category (365 days)
   const expensesRes = await db.query(
-    `SELECT category, COALESCE(SUM(amount_bgn), 0) as total FROM expense_entries
+    `SELECT category, COALESCE(SUM(amount_eur), 0) as total FROM expense_entries
      WHERE entry_date >= $1 GROUP BY category`, [oneYearAgo]);
   const feedCost = parseFloat(expensesRes.rows.find(r => r.category === 'feed')?.total || 0);
   const salaryCost = parseFloat(expensesRes.rows.find(r => r.category === 'salary')?.total || 0);
@@ -2770,13 +3092,13 @@ async function reportsFinancialKpis(db) {
   const activeSows = parseInt(sowCount.rows[0].count) || 1;
 
   const kpis = [
-    { name: 'cost_per_kg', label: 'Себестойност/кг', value: totalKg > 0 ? Math.round(totalCost / totalKg * 100) / 100 : 0, target: 2.50, unit: 'лв/кг', lowerIsBetter: true },
-    { name: 'feed_cost_per_kg', label: 'Фуражен разход/кг', value: totalKg > 0 ? Math.round(feedCost / totalKg * 100) / 100 : 0, target: 1.60, unit: 'лв/кг', lowerIsBetter: true },
-    { name: 'labor_cost_per_head', label: 'Разход труд/глава', value: totalHeads > 0 ? Math.round(salaryCost / totalHeads * 100) / 100 : 0, target: 25, unit: 'лв/глава', lowerIsBetter: true },
-    { name: 'vet_cost_per_head', label: 'Вет разход/глава', value: totalHeads > 0 ? Math.round(vetCost / totalHeads * 100) / 100 : 0, target: 8, unit: 'лв/глава', lowerIsBetter: true },
-    { name: 'revenue_per_sow', label: 'Приход/свиня/год', value: Math.round(revenue / activeSows * 100) / 100, target: 3000, unit: 'лв', lowerIsBetter: false },
+    { name: 'cost_per_kg', label: 'Себестойност/кг', value: totalKg > 0 ? Math.round(totalCost / totalKg * 100) / 100 : 0, target: 2.50, unit: '€/кг', lowerIsBetter: true },
+    { name: 'feed_cost_per_kg', label: 'Фуражен разход/кг', value: totalKg > 0 ? Math.round(feedCost / totalKg * 100) / 100 : 0, target: 1.60, unit: '€/кг', lowerIsBetter: true },
+    { name: 'labor_cost_per_head', label: 'Разход труд/глава', value: totalHeads > 0 ? Math.round(salaryCost / totalHeads * 100) / 100 : 0, target: 25, unit: '€/глава', lowerIsBetter: true },
+    { name: 'vet_cost_per_head', label: 'Вет разход/глава', value: totalHeads > 0 ? Math.round(vetCost / totalHeads * 100) / 100 : 0, target: 8, unit: '€/глава', lowerIsBetter: true },
+    { name: 'revenue_per_sow', label: 'Приход/свиня/год', value: Math.round(revenue / activeSows * 100) / 100, target: 3000, unit: '€', lowerIsBetter: false },
     { name: 'operating_margin', label: 'Оперативен марж', value: revenue > 0 ? Math.round((revenue - totalCost) / revenue * 10000) / 100 : 0, target: 15, unit: '%', lowerIsBetter: false },
-    { name: 'breakeven_price', label: 'Точка на рентабилност', value: totalKg > 0 ? Math.round(totalCost / totalKg * 100) / 100 : 0, target: null, unit: 'лв/кг', lowerIsBetter: true }
+    { name: 'breakeven_price', label: 'Точка на рентабилност', value: totalKg > 0 ? Math.round(totalCost / totalKg * 100) / 100 : 0, target: null, unit: '€/кг', lowerIsBetter: true }
   ];
 
   // Add color coding
@@ -2807,7 +3129,7 @@ async function exportExcel(db, { report_type, params: reportParams }) {
   try {
     if (report_type === 'pnl') {
       const res = await reportsPnl(db, p); const pnl = JSON.parse(res.body).pnl;
-      rows.push(csvRow(['Статия', 'Сума (лв)']));
+      rows.push(csvRow(['Статия', 'Сума (€)']));
       rows.push(csvRow(['Приходи от продажби', pnl.revenue]));
       rows.push(csvRow(['Фуражни разходи', -pnl.feed_cost]));
       rows.push(csvRow(['Заплати', -pnl.salary_cost]));
@@ -2822,13 +3144,13 @@ async function exportExcel(db, { report_type, params: reportParams }) {
 
     } else if (report_type === 'sales') {
       const res = await salesList(db, { ...p, limit: 50000 }); const sales = JSON.parse(res.body).sales;
-      rows.push(csvRow(['Дата', 'Тип', 'Купувач', 'Глави', 'Тегло (кг)', 'Цена/кг', 'Цена/бр', 'Сума (лв)', 'Фактура']));
-      for (const s of sales) rows.push(csvRow([s.sale_date?.substring(0, 10), s.sale_type, s.buyer_name, s.head_count, s.total_weight_kg, s.price_per_kg, s.price_per_head, s.total_amount_bgn, s.invoice_number]));
+      rows.push(csvRow(['Дата', 'Тип', 'Купувач', 'Глави', 'Тегло (кг)', 'Цена/кг', 'Цена/бр', 'Сума (€)', 'Фактура']));
+      for (const s of sales) rows.push(csvRow([s.sale_date?.substring(0, 10), s.sale_type, s.buyer_name, s.head_count, s.total_weight_kg, s.price_per_kg, s.price_per_head, s.total_amount_eur, s.invoice_number]));
 
     } else if (report_type === 'expenses') {
       const res = await expensesList(db, { ...p, limit: 50000 }); const expenses = JSON.parse(res.body).expenses;
-      rows.push(csvRow(['Дата', 'Категория', 'Подкатегория', 'Описание', 'Сума (лв)', 'Сектор']));
-      for (const e of expenses) rows.push(csvRow([e.entry_date?.substring(0, 10), e.category, e.subcategory, e.description, e.amount_bgn, e.sector_name]));
+      rows.push(csvRow(['Дата', 'Категория', 'Подкатегория', 'Описание', 'Сума (€)', 'Сектор']));
+      for (const e of expenses) rows.push(csvRow([e.entry_date?.substring(0, 10), e.category, e.subcategory, e.description, e.amount_eur, e.sector_name]));
 
     } else if (report_type === 'npd') {
       const res = await reportsNpd(db, p); const npd = JSON.parse(res.body).npd;
@@ -3253,11 +3575,11 @@ async function dispatchUpdate(db, { id, status, weight_at_loading_kg, weight_at_
   if (status === 'delivered' && updated.weight_at_destination_kg && updated.head_count) {
     const group = await db.query('SELECT * FROM animal_groups WHERE id = $1', [updated.group_id]);
     if (group.rows.length > 0) {
-      // Default price per kg if not set — use market average 2.95 лв/кг
+      // Default price per kg if not set — use market average 2.95 €/кг
       const pricePerKg = 2.95;
       const totalAmount = Math.round(parseFloat(updated.weight_at_destination_kg) * pricePerKg * 100) / 100;
       await db.query(
-        `INSERT INTO sales (sale_date, sale_type, group_id, buyer_name, head_count, total_weight_kg, price_per_kg, total_amount_bgn, notes, created_by)
+        `INSERT INTO sales (sale_date, sale_type, group_id, buyer_name, head_count, total_weight_kg, price_per_kg, total_amount_eur, notes, created_by)
          VALUES ($1, 'finisher', $2, $3, $4, $5, $6, $7, $8, $9)`,
         [updated.dispatch_date, updated.group_id, updated.buyer_name, updated.head_count,
          updated.weight_at_destination_kg, pricePerKg, totalAmount,
@@ -3803,7 +4125,7 @@ async function bonusCalculate(db, { month_key }) {
 
     // Find eligible personnel
     const roles = (rule.applies_to_roles || '').split(',').map(r => r.trim()).filter(Boolean);
-    let personnelQ = `SELECT DISTINCT p.id, p.name, p.role, st.base_salary_bgn, ph.hall_id
+    let personnelQ = `SELECT DISTINCT p.id, p.name, p.role, st.base_salary_eur, ph.hall_id
       FROM personnel p
       JOIN salary_templates st ON st.role = p.role AND st.is_active = true
       LEFT JOIN personnel_halls ph ON ph.personnel_id = p.id
@@ -3818,11 +4140,11 @@ async function bonusCalculate(db, { month_key }) {
     const personnel = await db.query(personnelQ, pParams);
     let ruleTotal = 0;
     for (const p of personnel.rows) {
-      const bonusAmt = Math.round(parseFloat(p.base_salary_bgn) * parseFloat(rule.bonus_pct) / 100 * 100) / 100;
+      const bonusAmt = Math.round(parseFloat(p.base_salary_eur) * parseFloat(rule.bonus_pct) / 100 * 100) / 100;
       await db.query(
-        `INSERT INTO bonus_calculations (month_key, personnel_id, bonus_rule_id, kpi_actual_value, target_value, target_met, base_salary_bgn, bonus_pct, bonus_amount_bgn, hall_id)
+        `INSERT INTO bonus_calculations (month_key, personnel_id, bonus_rule_id, kpi_actual_value, target_value, target_met, base_salary_eur, bonus_pct, bonus_amount_eur, hall_id)
          VALUES ($1, $2, $3, $4, $5, true, $6, $7, $8, $9)`,
-        [month_key, p.id, rule.id, kpiValue, rule.target_value, p.base_salary_bgn, rule.bonus_pct, bonusAmt, p.hall_id || null]
+        [month_key, p.id, rule.id, kpiValue, rule.target_value, p.base_salary_eur, rule.bonus_pct, bonusAmt, p.hall_id || null]
       );
       ruleTotal += bonusAmt;
       totalCalcs++;
@@ -3847,7 +4169,7 @@ async function bonusResults(db, { month_key }) {
   // Summary
   const summary = await db.query(`
     SELECT br.kpi_name, br.kpi_label, bc.kpi_actual_value, bc.target_value,
-      COUNT(*) as beneficiaries, SUM(bc.bonus_amount_bgn) as total_bonus, bc.status
+      COUNT(*) as beneficiaries, SUM(bc.bonus_amount_eur) as total_bonus, bc.status
     FROM bonus_calculations bc JOIN bonus_rules br ON br.id = bc.bonus_rule_id
     WHERE bc.month_key = $1 AND bc.target_met = true
     GROUP BY br.kpi_name, br.kpi_label, bc.kpi_actual_value, bc.target_value, bc.status
@@ -3866,11 +4188,11 @@ async function bonusApprove(db, { month_key, approved_by }) {
   `, [month_key]);
   let totalExpense = 0;
   for (const b of bonuses.rows) {
-    totalExpense += parseFloat(b.bonus_amount_bgn);
+    totalExpense += parseFloat(b.bonus_amount_eur);
   }
   if (totalExpense > 0) {
     await db.query(
-      `INSERT INTO expense_entries (entry_date, month_key, category, subcategory, description, amount_bgn, created_by)
+      `INSERT INTO expense_entries (entry_date, month_key, category, subcategory, description, amount_eur, created_by)
        VALUES (CURRENT_DATE, $1, 'salary', 'bonus', $2, $3, $4)`,
       [month_key, `KPI Бонуси за ${month_key}: ${bonuses.rows.length} служители`, totalExpense, approved_by]
     );
@@ -3882,7 +4204,7 @@ async function bonusHistory(db, { limit }) {
   const result = await db.query(`
     SELECT bc.month_key, bc.status,
       COUNT(*) as calc_count, SUM(CASE WHEN bc.target_met THEN 1 ELSE 0 END) as met_count,
-      SUM(CASE WHEN bc.target_met THEN bc.bonus_amount_bgn ELSE 0 END) as total_bonus
+      SUM(CASE WHEN bc.target_met THEN bc.bonus_amount_eur ELSE 0 END) as total_bonus
     FROM bonus_calculations bc
     GROUP BY bc.month_key, bc.status
     ORDER BY bc.month_key DESC
@@ -3896,7 +4218,7 @@ async function bonusSummary(db, { month_key }) {
   const result = await db.query(`
     SELECT br.kpi_name, br.kpi_label, br.target_value, br.operator, br.bonus_pct,
       bc.kpi_actual_value, bc.target_met, COUNT(bc.id) as beneficiaries,
-      COALESCE(SUM(bc.bonus_amount_bgn), 0) as total_bonus, bc.status
+      COALESCE(SUM(bc.bonus_amount_eur), 0) as total_bonus, bc.status
     FROM bonus_rules br
     LEFT JOIN bonus_calculations bc ON bc.bonus_rule_id = br.id AND bc.month_key = $1
     WHERE br.is_active = true
@@ -4336,11 +4658,11 @@ async function reportsEmployeeProfitability(db, { month_key }) {
   const monthStart = `${mk}-01`;
 
   // Total revenue for month
-  const rev = await db.query(`SELECT COALESCE(SUM(total_amount_bgn), 0) as total FROM sales WHERE sale_date >= $1 AND sale_date < ($1::date + INTERVAL '1 month')`, [monthStart]);
+  const rev = await db.query(`SELECT COALESCE(SUM(total_amount_eur), 0) as total FROM sales WHERE sale_date >= $1 AND sale_date < ($1::date + INTERVAL '1 month')`, [monthStart]);
   const revenue = parseFloat(rev.rows[0].total);
 
   // Total expenses
-  const exp = await db.query(`SELECT COALESCE(SUM(amount_bgn), 0) as total FROM expense_entries WHERE month_key = $1`, [mk]);
+  const exp = await db.query(`SELECT COALESCE(SUM(amount_eur), 0) as total FROM expense_entries WHERE month_key = $1`, [mk]);
   const expenses = parseFloat(exp.rows[0].total);
 
   // Total kg sold
@@ -4354,14 +4676,14 @@ async function reportsEmployeeProfitability(db, { month_key }) {
   // By role breakdown
   const byRole = await db.query(`
     SELECT p.role, COUNT(p.id) as count,
-      COALESCE(st.base_salary_bgn, 0) as base_salary,
-      COALESCE(SUM(ee.amount_bgn), 0) as total_salary_cost
+      COALESCE(st.base_salary_eur, 0) as base_salary,
+      COALESCE(SUM(ee.amount_eur), 0) as total_salary_cost
     FROM personnel p
     LEFT JOIN salary_templates st ON st.role = p.role
     LEFT JOIN expense_entries ee ON ee.category = 'salary' AND ee.month_key = $1
       AND ee.description LIKE '%' || p.name || '%'
     WHERE p.is_active = true
-    GROUP BY p.role, st.base_salary_bgn
+    GROUP BY p.role, st.base_salary_eur
     ORDER BY p.role
   `, [mk]);
 
@@ -4371,7 +4693,7 @@ async function reportsEmployeeProfitability(db, { month_key }) {
   const kgPerEmployee = totalStaff > 0 ? Math.round(totalKg / totalStaff * 100) / 100 : 0;
   const costPerKg = totalKg > 0 ? Math.round(expenses / totalKg * 100) / 100 : 0;
   // Labour cost per kg (spec formula: LC_kg = Total salary / Total kg sold)
-  const salaryCost = await db.query(`SELECT COALESCE(SUM(amount_bgn), 0) as total FROM expense_entries WHERE month_key = $1 AND category = 'salary'`, [mk]);
+  const salaryCost = await db.query(`SELECT COALESCE(SUM(amount_eur), 0) as total FROM expense_entries WHERE month_key = $1 AND category = 'salary'`, [mk]);
   const labourCostPerKg = totalKg > 0 ? Math.round(parseFloat(salaryCost.rows[0].total) / totalKg * 100) / 100 : 0;
 
   return ok({
@@ -4412,14 +4734,14 @@ async function reportsMortalityValue(db, { from_date, to_date }) {
   `, [fd, td]);
 
   // Estimate cost per dead animal based on category (feed consumed until death)
-  // Approximate feed cost per animal by category:
+  // Approximate feed cost per animal by category (EUR):
   const costEstimates = {
-    suckling_piglet: 15,   // BGN - minimal feed, mainly colostrum/milk
-    weaner: 85,            // BGN - starter feed consumed (~12kg at ~1.85 BGN/kg)
-    finisher: 350,         // BGN - significant feed investment (~120kg at ~2.95 BGN/kg)
-    gilt: 400,             // BGN - similar to finisher + selection cost
-    sow: 250,              // BGN - replacement value consideration
-    boar: 500              // BGN - high value genetic material
+    suckling_piglet: 8,    // EUR - minimal feed, mainly colostrum/milk
+    weaner: 43,            // EUR - starter feed consumed (~12kg at ~0.95 EUR/kg)
+    finisher: 179,         // EUR - significant feed investment (~120kg at ~1.50 EUR/kg)
+    gilt: 205,             // EUR - similar to finisher + selection cost
+    sow: 128,              // EUR - replacement value consideration
+    boar: 256              // EUR - high value genetic material
   };
 
   let totalValue = 0;
@@ -4455,11 +4777,10 @@ async function reportsMortalityValue(db, { from_date, to_date }) {
     mortalityValue: {
       from: fd, to: td,
       totalCount,
-      totalValueBgn: Math.round(totalValue * 100) / 100,
-      totalValueEur: Math.round(totalValue / EUR_BGN_RATE * 100) / 100,
-      bySector: Object.entries(bySector).map(([name, d]) => ({ sector: name, ...d, valueBgn: Math.round(d.value * 100) / 100 })),
-      byCategory: Object.entries(byCategory).map(([cat, d]) => ({ category: cat, ...d, valueBgn: Math.round(d.value * 100) / 100 })),
-      byDate: Object.entries(byDate).map(([date, d]) => ({ date, ...d, valueBgn: Math.round(d.value * 100) / 100 })).sort((a, b) => b.date.localeCompare(a.date)),
+      totalValueEur: Math.round(totalValue * 100) / 100,
+      bySector: Object.entries(bySector).map(([name, d]) => ({ sector: name, ...d, valueEur: Math.round(d.value * 100) / 100 })),
+      byCategory: Object.entries(byCategory).map(([cat, d]) => ({ category: cat, ...d, valueEur: Math.round(d.value * 100) / 100 })),
+      byDate: Object.entries(byDate).map(([date, d]) => ({ date, ...d, valueEur: Math.round(d.value * 100) / 100 })).sort((a, b) => b.date.localeCompare(a.date)),
       costEstimates
     }
   });
@@ -4491,7 +4812,7 @@ async function reportsDailyIO(db, { date, from_date, to_date }) {
 
   // INPUT: Raw materials received (component restocks)
   const rawMaterials = await db.query(
-    `SELECT COALESCE(SUM(ee.amount_bgn), 0) as total_bgn, COUNT(ee.id) as entries
+    `SELECT COALESCE(SUM(ee.amount_eur), 0) as total_eur, COUNT(ee.id) as entries
      FROM expense_entries ee WHERE ee.category = 'feed' AND ee.entry_date >= $1 AND ee.entry_date <= $2`, [fd, td]);
 
   // OUTPUT: Animals born
@@ -4502,7 +4823,7 @@ async function reportsDailyIO(db, { date, from_date, to_date }) {
   // OUTPUT: Animals sold/dispatched
   const sold = await db.query(
     `SELECT COALESCE(SUM(s.head_count), 0) as heads, COALESCE(SUM(s.total_weight_kg), 0) as kg,
-       COALESCE(SUM(s.total_amount_bgn), 0) as revenue_bgn
+       COALESCE(SUM(s.total_amount_eur), 0) as revenue_eur
      FROM sales s WHERE s.sale_date >= $1 AND s.sale_date <= $2`, [fd, td]);
 
   // OUTPUT: Deaths
@@ -4528,14 +4849,14 @@ async function reportsDailyIO(db, { date, from_date, to_date }) {
         feedProductionBatches: parseInt(feedProduced.rows[0].batch_count),
         feedDeliveredTons: parseFloat(feedDelivered.rows[0].total_tons),
         deliveryRoutes: parseInt(feedDelivered.rows[0].route_count),
-        rawMaterialsCostBgn: parseFloat(rawMaterials.rows[0].total_bgn),
+        rawMaterialsCostEur: parseFloat(rawMaterials.rows[0].total_eur),
         bornAlive: parseInt(born.rows[0].alive),
         bornDead: parseInt(born.rows[0].dead)
       },
       output: {
         soldHeads: parseInt(sold.rows[0].heads),
         soldKg: parseFloat(sold.rows[0].kg),
-        soldRevenueBgn: parseFloat(sold.rows[0].revenue_bgn),
+        soldRevenueEur: parseFloat(sold.rows[0].revenue_eur),
         deaths: parseInt(deaths.rows[0].count),
         estimatedWeightGainKg: Math.round(estimatedGainKg)
       },

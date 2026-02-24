@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { api } from '../api.js'
 import { useAuth } from '../AuthContext.jsx'
 
-function fmtBgn(v) { return v != null ? Number(v).toLocaleString('bg-BG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' лв' : '-' }
+function fmtEur(v) { return v != null ? Number(v).toLocaleString('bg-BG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €' : '-' }
 function fmtDate(d) { if (!d) return '-'; const dt = new Date(d); return `${String(dt.getDate()).padStart(2,'0')}.${String(dt.getMonth()+1).padStart(2,'0')}.${dt.getFullYear()}` }
 
 const OP_BG = { lt: '<', gt: '>', lte: '≤', gte: '≥', eq: '=' }
@@ -101,7 +101,7 @@ export default function Bonuses() {
             <div className="stat-label">Достигнати цели</div>
           </div>
           <div className="stat-card green">
-            <div className="stat-value" style={{ fontSize: 18 }}>{fmtBgn(summary.totalBonusBgn)}</div>
+            <div className="stat-value" style={{ fontSize: 18 }}>{fmtEur(summary.totalBonusEur)}</div>
             <div className="stat-label">Общо бонуси</div>
           </div>
         </div>
@@ -185,8 +185,8 @@ export default function Bonuses() {
                   <td>{r.kpi_actual_value != null ? Number(r.kpi_actual_value).toFixed(2) : '-'}</td>
                   <td>{Number(r.target_value).toFixed(2)}</td>
                   <td>{r.target_met ? <span className="badge green">Да</span> : <span className="badge red">Не</span>}</td>
-                  <td>{fmtBgn(r.base_salary_bgn)}</td>
-                  <td><strong>{r.target_met ? fmtBgn(r.bonus_amount_bgn) : '-'}</strong></td>
+                  <td>{fmtEur(r.base_salary_eur)}</td>
+                  <td><strong>{r.target_met ? fmtEur(r.bonus_amount_eur) : '-'}</strong></td>
                   <td><span className={`badge ${r.status === 'approved' ? 'green' : 'yellow'}`}>{r.status === 'approved' ? 'Одобрен' : 'Изчислен'}</span></td>
                   <td>{r.status === 'calculated' && <button className="btn small" onClick={() => approve(r.id)}>Одобри</button>}</td>
                 </tr>
@@ -227,7 +227,7 @@ function HistoryView() {
             <tr key={i.id}>
               <td>{i.personnel_name}</td>
               <td>{i.kpi_label || i.kpi_name}</td>
-              <td>{i.target_met ? fmtBgn(i.bonus_amount_bgn) : '-'}</td>
+              <td>{i.target_met ? fmtEur(i.bonus_amount_eur) : '-'}</td>
               <td><span className={`badge ${i.status === 'approved' ? 'green' : 'yellow'}`}>{i.status === 'approved' ? 'Одобрен' : 'Изчислен'}</span></td>
             </tr>
           ))}

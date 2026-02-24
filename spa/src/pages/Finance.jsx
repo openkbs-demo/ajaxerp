@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { api, exportCsv } from '../api.js'
 
-function fmtBgn(v) { return v != null ? Number(v).toLocaleString('bg-BG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' лв' : '-' }
+function fmtEur(v) { return v != null ? Number(v).toLocaleString('bg-BG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €' : '-' }
 function fmtPct(v) { return v != null ? Number(v).toFixed(1) + '%' : '-' }
 
 export default function Finance() {
@@ -51,15 +51,15 @@ export default function Finance() {
       {/* Summary stats */}
       <div className="grid grid-4" style={{ marginBottom: 24 }}>
         <div className="stat-card green">
-          <div className="stat-value">{fmtBgn(pnl?.revenue)}</div>
+          <div className="stat-value">{fmtEur(pnl?.revenue)}</div>
           <div className="stat-label">Приходи</div>
         </div>
         <div className="stat-card red">
-          <div className="stat-value">{fmtBgn(pnl?.total_cost)}</div>
+          <div className="stat-value">{fmtEur(pnl?.total_cost)}</div>
           <div className="stat-label">Разходи</div>
         </div>
         <div className={`stat-card ${pnl?.operating_profit >= 0 ? 'green' : 'red'}`}>
-          <div className="stat-value">{fmtBgn(pnl?.operating_profit)}</div>
+          <div className="stat-value">{fmtEur(pnl?.operating_profit)}</div>
           <div className="stat-label">Печалба</div>
         </div>
         <div className={`stat-card ${pnl?.operating_margin_pct >= 15 ? 'green' : pnl?.operating_margin_pct >= 5 ? 'yellow' : 'red'}`}>
@@ -74,20 +74,20 @@ export default function Finance() {
           <h3>Печалба и загуба</h3>
           <table>
             <tbody>
-              <tr><td><strong>Приходи от продажби</strong></td><td style={{textAlign:'right'}}><strong>{fmtBgn(pnl?.revenue)}</strong></td></tr>
-              <tr style={{borderTop:'2px solid var(--border)'}}><td>Фуражни разходи</td><td style={{textAlign:'right',color:'var(--danger)'}}>-{fmtBgn(pnl?.feed_cost)}</td></tr>
-              <tr><td>Заплати</td><td style={{textAlign:'right',color:'var(--danger)'}}>-{fmtBgn(pnl?.salary_cost)}</td></tr>
-              <tr><td>Ветеринарни</td><td style={{textAlign:'right',color:'var(--danger)'}}>-{fmtBgn(pnl?.vet_cost)}</td></tr>
-              <tr><td>Други разходи</td><td style={{textAlign:'right',color:'var(--danger)'}}>-{fmtBgn(pnl?.other_cost)}</td></tr>
+              <tr><td><strong>Приходи от продажби</strong></td><td style={{textAlign:'right'}}><strong>{fmtEur(pnl?.revenue)}</strong></td></tr>
+              <tr style={{borderTop:'2px solid var(--border)'}}><td>Фуражни разходи</td><td style={{textAlign:'right',color:'var(--danger)'}}>-{fmtEur(pnl?.feed_cost)}</td></tr>
+              <tr><td>Заплати</td><td style={{textAlign:'right',color:'var(--danger)'}}>-{fmtEur(pnl?.salary_cost)}</td></tr>
+              <tr><td>Ветеринарни</td><td style={{textAlign:'right',color:'var(--danger)'}}>-{fmtEur(pnl?.vet_cost)}</td></tr>
+              <tr><td>Други разходи</td><td style={{textAlign:'right',color:'var(--danger)'}}>-{fmtEur(pnl?.other_cost)}</td></tr>
               <tr style={{borderTop:'3px double var(--border)',fontWeight:700}}>
                 <td>Оперативна печалба</td>
-                <td style={{textAlign:'right',color:pnl?.operating_profit>=0?'var(--success)':'var(--danger)'}}>{fmtBgn(pnl?.operating_profit)}</td>
+                <td style={{textAlign:'right',color:pnl?.operating_profit>=0?'var(--success)':'var(--danger)'}}>{fmtEur(pnl?.operating_profit)}</td>
               </tr>
               <tr><td>Брутен марж</td><td style={{textAlign:'right'}}>{fmtPct(pnl?.gross_margin_pct)}</td></tr>
               <tr><td>Оперативен марж</td><td style={{textAlign:'right'}}>{fmtPct(pnl?.operating_margin_pct)}</td></tr>
               <tr style={{borderTop:'1px solid var(--border)'}}><td>Продадени кг</td><td style={{textAlign:'right'}}>{pnl?.total_kg_sold ? Number(pnl.total_kg_sold).toLocaleString('bg-BG') + ' кг' : '-'}</td></tr>
               <tr><td>Продадени глави</td><td style={{textAlign:'right'}}>{pnl?.total_heads_sold || 0}</td></tr>
-              <tr><td>Себестойност/кг</td><td style={{textAlign:'right'}}>{pnl?.cost_per_kg ? fmtBgn(pnl.cost_per_kg) : '-'}</td></tr>
+              <tr><td>Себестойност/кг</td><td style={{textAlign:'right'}}>{pnl?.cost_per_kg ? fmtEur(pnl.cost_per_kg) : '-'}</td></tr>
             </tbody>
           </table>
         </div>
@@ -123,12 +123,12 @@ export default function Finance() {
               {sector.map(s => (
                 <tr key={s.sector_code}>
                   <td><strong>{s.sector_name}</strong></td>
-                  <td style={{textAlign:'right'}}>{fmtBgn(s.revenue)}</td>
-                  <td style={{textAlign:'right'}}>{fmtBgn(s.feed_cost)}</td>
-                  <td style={{textAlign:'right'}}>{fmtBgn(s.salary_cost)}</td>
-                  <td style={{textAlign:'right'}}>{fmtBgn(s.vet_cost)}</td>
-                  <td style={{textAlign:'right'}}>{fmtBgn(s.total_cost)}</td>
-                  <td style={{textAlign:'right',color:s.operating_profit>=0?'var(--success)':'var(--danger)',fontWeight:600}}>{fmtBgn(s.operating_profit)}</td>
+                  <td style={{textAlign:'right'}}>{fmtEur(s.revenue)}</td>
+                  <td style={{textAlign:'right'}}>{fmtEur(s.feed_cost)}</td>
+                  <td style={{textAlign:'right'}}>{fmtEur(s.salary_cost)}</td>
+                  <td style={{textAlign:'right'}}>{fmtEur(s.vet_cost)}</td>
+                  <td style={{textAlign:'right'}}>{fmtEur(s.total_cost)}</td>
+                  <td style={{textAlign:'right',color:s.operating_profit>=0?'var(--success)':'var(--danger)',fontWeight:600}}>{fmtEur(s.operating_profit)}</td>
                 </tr>
               ))}
             </tbody>

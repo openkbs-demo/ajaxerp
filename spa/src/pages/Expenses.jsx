@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { api, exportCsv } from '../api.js'
 import { useAuth } from '../AuthContext.jsx'
 
-function fmtBgn(v) { return v != null ? Number(v).toLocaleString('bg-BG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' лв' : '-' }
+function fmtEur(v) { return v != null ? Number(v).toLocaleString('bg-BG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €' : '-' }
 function fmtDate(d) { if (!d) return '-'; const dt = new Date(d); return `${String(dt.getDate()).padStart(2,'0')}.${String(dt.getMonth()+1).padStart(2,'0')}.${dt.getFullYear()}` }
 
 const CAT_BG = { feed: 'Фуражи', salary: 'Заплати', veterinary: 'Ветеринарни', other: 'Други' }
@@ -20,7 +20,7 @@ export default function Expenses() {
   })
   const [templates, setTemplates] = useState([])
   const [medicines, setMedicines] = useState([])
-  const [form, setForm] = useState({ category: 'other', subcategory: '', description: '', amount_bgn: '', notes: '' })
+  const [form, setForm] = useState({ category: 'other', subcategory: '', description: '', amount_eur: '', notes: '' })
 
   const load = async () => {
     setLoading(true)
@@ -59,12 +59,12 @@ export default function Expenses() {
         category: form.category,
         subcategory: form.subcategory,
         description: form.description,
-        amount_bgn: parseFloat(form.amount_bgn),
+        amount_eur: parseFloat(form.amount_eur),
         notes: form.notes,
         created_by: user?.id
       })
       setShowModal(false)
-      setForm({ category: 'other', subcategory: '', description: '', amount_bgn: '', notes: '' })
+      setForm({ category: 'other', subcategory: '', description: '', amount_eur: '', notes: '' })
       load()
     } catch (err) { alert(err.message) }
   }
@@ -72,7 +72,7 @@ export default function Expenses() {
   const generateSalaries = async () => {
     try {
       const res = await api('salary.generate', { month_key: salaryMonth, created_by: user?.id })
-      alert(`Генерирани ${res.count} записа за ${fmtBgn(res.total_bgn)}`)
+      alert(`Генерирани ${res.count} записа за ${fmtEur(res.total_eur)}`)
       setShowSalary(false)
       load()
     } catch (err) { alert(err.message) }
@@ -94,7 +94,7 @@ export default function Expenses() {
         <div className="grid grid-4" style={{ marginBottom: 24 }}>
           {summary.byCategory?.map(c => (
             <div key={c.category} className="stat-card">
-              <div className="stat-value">{fmtBgn(c.total_bgn)}</div>
+              <div className="stat-value">{fmtEur(c.total_eur)}</div>
               <div className="stat-label">{CAT_BG[c.category] || c.category} ({c.entry_count} записа)</div>
             </div>
           ))}
@@ -121,7 +121,7 @@ export default function Expenses() {
                   <td><span className={`badge ${ex.category === 'feed' ? 'green' : ex.category === 'salary' ? 'blue' : ex.category === 'veterinary' ? 'yellow' : 'grey'}`}>{CAT_BG[ex.category] || ex.category}</span></td>
                   <td>{ex.subcategory || '-'}</td>
                   <td style={{maxWidth:200,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{ex.description || '-'}</td>
-                  <td style={{fontWeight:600}}>{fmtBgn(ex.amount_bgn)}</td>
+                  <td style={{fontWeight:600}}>{fmtEur(ex.amount_eur)}</td>
                   <td>{ex.sector_name || '-'}</td>
                 </tr>
               )) : <tr><td colSpan={6} style={{textAlign:'center',color:'var(--text-secondary)'}}>Няма записи</td></tr>}
@@ -138,7 +138,7 @@ export default function Expenses() {
             <thead><tr><th>Роля</th><th>Базова заплата</th></tr></thead>
             <tbody>
               {templates.map(t => (
-                <tr key={t.id}><td>{t.role}</td><td>{fmtBgn(t.base_salary_bgn)}</td></tr>
+                <tr key={t.id}><td>{t.role}</td><td>{fmtEur(t.base_salary_eur)}</td></tr>
               ))}
             </tbody>
           </table>
@@ -152,7 +152,7 @@ export default function Expenses() {
                 <tr key={m.id}>
                   <td>{m.name_bg || m.name}</td>
                   <td>{m.unit}</td>
-                  <td>{fmtBgn(m.price_per_unit_bgn)}</td>
+                  <td>{fmtEur(m.price_per_unit_eur)}</td>
                   <td><span className={parseFloat(m.current_stock) <= parseFloat(m.reorder_threshold) ? 'badge red' : ''}>{m.current_stock} {m.unit}</span></td>
                 </tr>
               ))}
@@ -186,8 +186,8 @@ export default function Expenses() {
                 <input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} required />
               </div>
               <div className="form-group">
-                <label>Сума (лв)</label>
-                <input type="number" step="0.01" min="0" value={form.amount_bgn} onChange={e => setForm(p => ({ ...p, amount_bgn: e.target.value }))} required />
+                <label>Сума (€)</label>
+                <input type="number" step="0.01" min="0" value={form.amount_eur} onChange={e => setForm(p => ({ ...p, amount_eur: e.target.value }))} required />
               </div>
               <div className="form-group">
                 <label>Бележки</label>

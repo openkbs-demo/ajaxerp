@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { api, exportCsv } from '../api.js'
 import { useAuth } from '../AuthContext.jsx'
 
-function fmtBgn(v) { return v != null ? Number(v).toLocaleString('bg-BG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' лв' : '-' }
+function fmtEur(v) { return v != null ? Number(v).toLocaleString('bg-BG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €' : '-' }
 function fmtDate(d) { if (!d) return '-'; const dt = new Date(d); return `${String(dt.getDate()).padStart(2,'0')}.${String(dt.getMonth()+1).padStart(2,'0')}.${dt.getFullYear()}` }
 
 const STATUS_BG = { proposed: 'Предложена', confirmed: 'Потвърдена', loading: 'Товарене', in_transit: 'В транзит', delivered: 'Доставена', cancelled: 'Отменена' }

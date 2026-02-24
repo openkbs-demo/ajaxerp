@@ -3,7 +3,7 @@ import { api } from '../api.js'
 import { useAuth } from '../AuthContext.jsx'
 
 function fmtDate(d) { if (!d) return '-'; const dt = new Date(d); return `${String(dt.getDate()).padStart(2,'0')}.${String(dt.getMonth()+1).padStart(2,'0')}.${dt.getFullYear()}` }
-function fmtBgn(v) { return v != null ? Number(v).toLocaleString('bg-BG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' лв' : '-' }
+function fmtEur(v) { return v != null ? Number(v).toLocaleString('bg-BG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €' : '-' }
 
 const DOC_TYPE_BG = { diary_no1: 'Дневник №1 (БАБХ)', vetis_certificate: 'ВЕТИС Сертификат', animal_register: 'ИАСРЖ Регистър' }
 const STATUS_BG = { draft: 'Чернова', final: 'Финализиран', submitted: 'Подаден' }
