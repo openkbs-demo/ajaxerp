@@ -26,10 +26,21 @@ export default function Bonuses() {
         api('bonus.summary', { month_key: monthKey })
       ])
       setRules(r.rules || [])
-      setSummary(s.summary || null)
+      // Compute summary totals from array of KPI summaries
+      const sArr = s.summary || []
+      if (sArr.length > 0) {
+        setSummary({
+          totalCalculated: sArr.reduce((a, x) => a + parseInt(x.beneficiaries || 0), 0),
+          totalApproved: sArr.filter(x => x.status === 'approved').reduce((a, x) => a + parseInt(x.beneficiaries || 0), 0),
+          totalMet: sArr.filter(x => x.target_met).length,
+          totalBonusEur: sArr.reduce((a, x) => a + parseFloat(x.total_bonus || 0), 0)
+        })
+      } else {
+        setSummary(null)
+      }
       if (section === 'results') {
         const res = await api('bonus.results', { month_key: monthKey })
-        setResults(res.calculations || [])
+        setResults(res.details || [])
       }
     } catch (e) { console.error(e) }
     setLoading(false)
@@ -212,7 +223,7 @@ function HistoryView() {
   const [history, setHistory] = useState([])
   const [loading, setLoading] = useState(true)
   useEffect(() => {
-    api('bonus.history', { limit: 100 }).then(r => { setHistory(r.calculations || []); setLoading(false) }).catch(() => setLoading(false))
+    api('bonus.history', { limit: 100 }).then(r => { setHistory(r.history || []); setLoading(false) }).catch(() => setLoading(false))
   }, [])
   if (loading) return <div className="loading">Зареждане...</div>
   const grouped = {}

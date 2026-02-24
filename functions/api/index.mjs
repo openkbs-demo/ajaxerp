@@ -4548,9 +4548,18 @@ async function bonusResults(db, { month_key }) {
   return ok({ month: month_key, details: result.rows, summary: summary.rows });
 }
 
-async function bonusApprove(db, { month_key, approved_by }) {
-  if (!month_key || !approved_by) return err(400, 'month_key и approved_by са задължителни');
-  await db.query(`UPDATE bonus_calculations SET status = 'approved', approved_by = $1, approved_at = NOW() WHERE month_key = $2 AND status = 'calculated'`, [approved_by, month_key]);
+async function bonusApprove(db, { id, month_key, approved_by }) {
+  if (!approved_by) return err(400, 'approved_by е задължително');
+  if (!id && !month_key) return err(400, 'id или month_key е задължително');
+  if (id) {
+    // Individual approve
+    await db.query(`UPDATE bonus_calculations SET status = 'approved', approved_by = $1, approved_at = NOW() WHERE id = $2 AND status = 'calculated'`, [approved_by, id]);
+    const rec = await db.query('SELECT month_key FROM bonus_calculations WHERE id = $1', [id]);
+    month_key = rec.rows[0]?.month_key;
+    if (!month_key) return ok({ approved: 1, totalExpense: 0 });
+  } else {
+    await db.query(`UPDATE bonus_calculations SET status = 'approved', approved_by = $1, approved_at = NOW() WHERE month_key = $2 AND status = 'calculated'`, [approved_by, month_key]);
+  }
   // Create expense entries for approved bonuses
   const bonuses = await db.query(`
     SELECT bc.*, p.name as pname, br.kpi_label FROM bonus_calculations bc
@@ -4573,14 +4582,13 @@ async function bonusApprove(db, { month_key, approved_by }) {
 
 async function bonusHistory(db, { limit }) {
   const result = await db.query(`
-    SELECT bc.month_key, bc.status,
-      COUNT(*) as calc_count, SUM(CASE WHEN bc.target_met THEN 1 ELSE 0 END) as met_count,
-      SUM(CASE WHEN bc.target_met THEN bc.bonus_amount_eur ELSE 0 END) as total_bonus
+    SELECT bc.*, p.name as personnel_name, p.role, br.kpi_name, br.kpi_label
     FROM bonus_calculations bc
-    GROUP BY bc.month_key, bc.status
-    ORDER BY bc.month_key DESC
+    JOIN personnel p ON p.id = bc.personnel_id
+    JOIN bonus_rules br ON br.id = bc.bonus_rule_id
+    ORDER BY bc.month_key DESC, br.kpi_name, p.name
     LIMIT $1
-  `, [limit || 24]);
+  `, [limit || 200]);
   return ok({ history: result.rows });
 }
 
