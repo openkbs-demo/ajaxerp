@@ -98,6 +98,32 @@ export default function SowCard() {
         <div className="stat-card"><div className="stat-value">{animal.hall_name || '-'}</div><div className="stat-label">Хале / Сектор</div></div>
       </div>
 
+      {/* Days to farrowing countdown — Spec Section V.2 (Pregnant sector) */}
+      {(() => {
+        if (!['inseminated', 'pregnant_confirmed', 'in_farrowing'].includes(animal.status)) return null
+        // Find last insemination event to calculate expected farrowing date (gestation ~114 days)
+        const insemEvent = events?.find(e => e.event_type === 'insemination')
+        if (!insemEvent) return null
+        const insemDate = new Date(insemEvent.event_date)
+        const expectedFarrowing = new Date(insemDate.getTime() + 114 * 86400000)
+        const daysLeft = Math.round((expectedFarrowing - new Date()) / 86400000)
+        const color = daysLeft <= 0 ? 'red' : daysLeft <= 7 ? 'yellow' : 'green'
+        return (
+          <div className={`alert-item ${daysLeft <= 7 ? 'warning' : 'info'}`} style={{ marginBottom: 16 }}>
+            <div className="alert-msg">
+              <strong>Очаквано раждане:</strong> {fmtDate(expectedFarrowing)}
+              {' — '}
+              <span style={{ fontSize: 16, fontWeight: 700, color: color === 'red' ? 'var(--danger)' : color === 'yellow' ? 'var(--warning)' : 'var(--success)' }}>
+                {daysLeft <= 0 ? `${Math.abs(daysLeft)} дни закъснение!` : `${daysLeft} дни до раждане`}
+              </span>
+              <span style={{ fontSize: 12, color: 'var(--text-secondary)', marginLeft: 8 }}>
+                (осеменяване: {fmtDate(insemEvent.event_date)}, бременност: 114 дни)
+              </span>
+            </div>
+          </div>
+        )
+      })()}
+
       {/* Culling proposal */}
       {cullingProposal?.shouldCull && (
         <div className="alert-item critical" style={{ marginBottom: 16 }}>

@@ -134,6 +134,52 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Employee profitability & Water monitoring — Spec Final Package #7 (GAD Dashboard) */}
+      <div className="grid grid-2" style={{ marginTop: 16, gap: 16 }}>
+        {data.employeeProfit && (
+          <div className="card">
+            <h3>Доходност на служител (GAD) <Link to="/reports" style={{fontSize:12,float:'right'}}>Пълен отчет</Link></h3>
+            <div className="grid grid-2" style={{ marginBottom: 8 }}>
+              <div className={`stat-card ${data.employeeProfit.profitPerEmployee >= 0 ? 'green' : 'red'}`}>
+                <div className="stat-value" style={{fontSize:18}}>{fmtBgn(data.employeeProfit.profitPerEmployee)}</div>
+                <div className="stat-label">Печалба/служител</div>
+              </div>
+              <div className="stat-card blue">
+                <div className="stat-value" style={{fontSize:18}}>{fmtBgn(data.employeeProfit.revenuePerEmployee)}</div>
+                <div className="stat-label">Приход/служител</div>
+              </div>
+            </div>
+            <table>
+              <tbody>
+                <tr><td>Персонал</td><td><strong>{data.employeeProfit.totalStaff}</strong> души</td></tr>
+                <tr><td>Разход труд/кг месо</td><td><strong>{fmtBgn(data.employeeProfit.labourCostPerKg)}</strong>/кг</td></tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {data.water && (
+          <div className="card">
+            <h3>Мониторинг вода</h3>
+            <div className="grid grid-3" style={{ marginBottom: 8 }}>
+              <div className="stat-card blue">
+                <div className="stat-value" style={{fontSize:18}}>{data.water.todayReadings}</div>
+                <div className="stat-label">Отчитания днес</div>
+              </div>
+              <div className={`stat-card ${data.water.alertsToday > 0 ? 'red' : 'green'}`}>
+                <div className="stat-value" style={{fontSize:18}}>{data.water.alertsToday}</div>
+                <div className="stat-label">Аларми вода</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-value" style={{fontSize:18}}>{data.water.avgConsumption} m3</div>
+                <div className="stat-label">Ср. консумация (7д)</div>
+              </div>
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Спад {">"} 15% за 24ч задейства аларма за възможна инфекция (ПРРС/Грип)</p>
+          </div>
+        )}
+      </div>
+
       {/* Logistics summary */}
       {data.logistics && (
         <div className="card" style={{ marginTop: 16 }}>

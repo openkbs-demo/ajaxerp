@@ -629,7 +629,24 @@ async function runMigrations(db) {
     )
   `);
 
+  // Water consumption tracking (for early warning system)
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS water_consumption (
+      id SERIAL PRIMARY KEY,
+      hall_id INTEGER NOT NULL REFERENCES halls(id),
+      reading_date DATE NOT NULL,
+      consumption_m3 NUMERIC(10,3) NOT NULL,
+      animal_count INTEGER,
+      liters_per_animal NUMERIC(8,2),
+      recorded_by INTEGER REFERENCES personnel(id),
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(hall_id, reading_date)
+    )
+  `);
+
   // Indexes
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_water_hall_date ON water_consumption(hall_id, reading_date)`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_animals_category ON animals(category)`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_animals_status ON animals(status)`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_animals_hall ON animals(current_hall_id)`);

@@ -30,6 +30,12 @@ export default function Biosecurity() {
   const [withdrawals, setWithdrawals] = useState([])
   const [medWithdrawals, setMedWithdrawals] = useState([])
 
+  // Heatmap tab
+  const [heatmap, setHeatmap] = useState(null)
+
+  // Locations tab
+  const [locations, setLocations] = useState([])
+
   const loadData = async () => {
     setLoading(true)
     try {
@@ -55,6 +61,12 @@ export default function Biosecurity() {
         ])
         setWithdrawals(aw.withdrawals || [])
         setMedWithdrawals(mw.withdrawals || [])
+      } else if (tab === 'heatmap') {
+        const res = await api('biosecurity.heatmap', {})
+        setHeatmap(res.heatmap || null)
+      } else if (tab === 'locations') {
+        const res = await api('access.currentLocations', {})
+        setLocations(res.locations || [])
       }
     } catch (e) { console.error(e) }
     setLoading(false)
@@ -124,8 +136,8 @@ export default function Biosecurity() {
         <h1>Биосигурност</h1>
       </div>
 
-      <div className="tabs" style={{ marginBottom: 16, display: 'flex', gap: 8 }}>
-        {[['access', 'Достъп'], ['violations', 'Нарушения'], ['hygiene', 'Хигиена халета'], ['withdrawals', 'Карентни срокове']].map(([key, label]) => (
+      <div className="tabs" style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {[['access', 'Достъп'], ['violations', 'Нарушения'], ['hygiene', 'Хигиена халета'], ['withdrawals', 'Карентни срокове'], ['heatmap', 'Heatmap'], ['locations', 'Текущи позиции']].map(([key, label]) => (
           <button key={key} className={`btn ${tab === key ? 'primary' : ''}`} onClick={() => setTab(key)}>{label}</button>
         ))}
       </div>
@@ -300,6 +312,88 @@ export default function Biosecurity() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* HEATMAP TAB — Spec Section V.Б: Staff movement heatmap */}
+      {tab === 'heatmap' && (
+        <div>
+          {heatmap ? (
+            <>
+              <div className="card" style={{ marginBottom: 16 }}>
+                <h3>Карта на движение на персонала ({heatmap.from} - {heatmap.to})</h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 8 }}>Брой влизания по служител/хале. Потенциални нарушения на биосигурността са маркирани.</p>
+                {heatmap.entries?.length > 0 ? (
+                  <table>
+                    <thead><tr><th>Служител</th><th>Хале</th><th>Влизания</th><th>Нарушения</th></tr></thead>
+                    <tbody>
+                      {heatmap.entries.map((e, i) => {
+                        const viol = heatmap.violations?.find(v => v.personnel_id === e.personnel_id && v.hall_id === e.hall_id)
+                        return (
+                          <tr key={i} style={viol ? { background: 'var(--danger-bg, rgba(255,0,0,0.05))' } : undefined}>
+                            <td><strong>{e.personnel_name}</strong></td>
+                            <td>{e.hall_name}</td>
+                            <td>
+                              <span style={{
+                                display: 'inline-block', padding: '2px 8px', borderRadius: 4, fontWeight: 600,
+                                background: parseInt(e.entries) > 10 ? 'var(--danger, #dc3545)' : parseInt(e.entries) > 5 ? 'var(--warning, #ffc107)' : 'var(--success, #28a745)',
+                                color: parseInt(e.entries) > 5 ? '#000' : '#fff'
+                              }}>
+                                {e.entries}
+                              </span>
+                            </td>
+                            <td>{viol ? <span className="badge red">{viol.violation_count}</span> : '-'}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                ) : <p style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>Няма записи за достъп в периода</p>}
+              </div>
+              {heatmap.violations?.length > 0 && (
+                <div className="card">
+                  <h3 style={{ color: 'var(--danger)' }}>Нарушения по служител</h3>
+                  <table>
+                    <thead><tr><th>Служител</th><th>Хале</th><th>Нарушения</th></tr></thead>
+                    <tbody>
+                      {heatmap.violations.map((v, i) => (
+                        <tr key={i}>
+                          <td><strong>{v.personnel_name}</strong></td>
+                          <td>{v.hall_name || '-'}</td>
+                          <td><span className="badge red">{v.violation_count}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          ) : <p style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>Няма данни за heatmap</p>}
+        </div>
+      )}
+
+      {/* CURRENT LOCATIONS TAB — Spec Section VI.А: Real-time staff positions */}
+      {tab === 'locations' && (
+        <div className="card">
+          <h3>Текущи позиции на персонала (последни 12 часа)</h3>
+          <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 8 }}>Показва последното хале с действие "Вход" за всеки служител.</p>
+          {locations.length > 0 ? (
+            <table>
+              <thead><tr><th>Служител</th><th>Длъжност</th><th>Хале</th><th>Сектор</th><th>Зона</th><th>Последен вход</th></tr></thead>
+              <tbody>
+                {locations.map(l => (
+                  <tr key={l.personnel_id}>
+                    <td><strong>{l.personnel_name}</strong></td>
+                    <td>{l.role}</td>
+                    <td>{l.hall_name}</td>
+                    <td>{l.sector_name}</td>
+                    <td><span className={`badge ${l.zone === 'black' ? 'red' : l.zone === 'grey' ? 'yellow' : 'green'}`}>{l.zone === 'black' ? 'Черна' : l.zone === 'grey' ? 'Сива' : 'Бяла'}</span></td>
+                    <td>{fmtDateTime(l.created_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : <p style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>Няма регистрирани позиции в последните 12 часа</p>}
         </div>
       )}
     </>

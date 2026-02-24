@@ -21,12 +21,18 @@ export default function Reports() {
         <div className={`tab ${tab === 'feed' ? 'active' : ''}`} onClick={() => setTab('feed')}>Фуражи</div>
         <div className={`tab ${tab === 'halls' ? 'active' : ''}`} onClick={() => setTab('halls')}>Халета</div>
         <div className={`tab ${tab === 'inventory' ? 'active' : ''}`} onClick={() => setTab('inventory')}>Инвентар</div>
+        <div className={`tab ${tab === 'trucks' ? 'active' : ''}`} onClick={() => setTab('trucks')}>Фуражовози</div>
+        <div className={`tab ${tab === 'mortality' ? 'active' : ''}`} onClick={() => setTab('mortality')}>Смъртност (лв)</div>
+        <div className={`tab ${tab === 'dailyio' ? 'active' : ''}`} onClick={() => setTab('dailyio')}>Вход/Изход</div>
       </div>
       {tab === 'npd' && <NpdReport />}
       {tab === 'weight' && <WeightReport />}
       {tab === 'feed' && <FeedReport />}
       {tab === 'halls' && <HallReport />}
       {tab === 'inventory' && <InventoryReport user={user} />}
+      {tab === 'trucks' && <TruckEfficiencyReport />}
+      {tab === 'mortality' && <MortalityValueReport />}
+      {tab === 'dailyio' && <DailyIOReport />}
     </>
   )
 }
@@ -410,6 +416,193 @@ function InventoryReport({ user }) {
           </div>
         </div>
       )}
+    </>
+  )
+}
+
+// ═══ Truck Efficiency Report (Spec Section V.В.3 — Big 5 #3) ═══
+function TruckEfficiencyReport() {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    api('reports.truckEfficiency', {}).then(r => setData(r.truckEfficiency)).catch(console.error).finally(() => setLoading(false))
+  }, [])
+
+  if (loading) return <div className="loading">Зареждане...</div>
+  if (!data) return <div className="loading">Няма данни</div>
+
+  return (
+    <>
+      <div className="grid grid-4" style={{ marginBottom: 16 }}>
+        <div className="stat-card"><div className="stat-value">{data.trucks?.length || 0}</div><div className="stat-label">Фуражовоза</div></div>
+        <div className="stat-card"><div className="stat-value">{data.totals?.routes || 0}</div><div className="stat-label">Общо курсове</div></div>
+        <div className="stat-card"><div className="stat-value">{fmtNum(data.totals?.tons, 1)}</div><div className="stat-label">Общо тонове</div></div>
+        <div className="stat-card"><div className="stat-value">{fmtNum(data.totals?.km, 0)}</div><div className="stat-label">Общо км</div></div>
+      </div>
+      <div className="card">
+        <h3>Ефективност на фуражовозите ({data.from} - {data.to})</h3>
+        <table>
+          <thead><tr><th>Рег. номер</th><th>Шофьор</th><th>Капацитет (т)</th><th>Курсове</th><th>Тонове</th><th>Ср. т/курс</th><th>Км</th><th>Часове</th></tr></thead>
+          <tbody>
+            {data.trucks?.length > 0 ? data.trucks.map(t => (
+              <tr key={t.id}>
+                <td><strong>{t.plate_number}</strong></td>
+                <td>{t.driver_name || '-'}</td>
+                <td>{fmtNum(t.capacity_tons, 1)}</td>
+                <td>{t.completed_routes}</td>
+                <td>{fmtNum(t.total_tons_delivered, 1)}</td>
+                <td>{fmtNum(t.avg_tons_per_route, 2)}</td>
+                <td>{fmtNum(t.total_km, 0)}</td>
+                <td>{fmtNum(t.total_hours, 1)}</td>
+              </tr>
+            )) : <tr><td colSpan={8} style={{textAlign:'center',color:'var(--text-secondary)'}}>Няма завършени маршрути</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </>
+  )
+}
+
+// ═══ Mortality by Monetary Value Report (Spec Section IV.Д) ═══
+function MortalityValueReport() {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    api('reports.mortalityValue', {}).then(r => setData(r.mortalityValue)).catch(console.error).finally(() => setLoading(false))
+  }, [])
+
+  if (loading) return <div className="loading">Зареждане...</div>
+  if (!data) return <div className="loading">Няма данни</div>
+
+  const CAT_BG = { suckling_piglet: 'Бозайник', weaner: 'Подрастващо', finisher: 'Угояване', gilt: 'Ремонтна', sow: 'Майка', boar: 'Нерез' }
+
+  return (
+    <>
+      <div className="grid grid-3" style={{ marginBottom: 16 }}>
+        <div className={`stat-card ${data.totalCount > 0 ? 'red' : 'green'}`}>
+          <div className="stat-value">{data.totalCount}</div>
+          <div className="stat-label">Умрели животни</div>
+        </div>
+        <div className="stat-card red">
+          <div className="stat-value">{fmtBgn(data.totalValueBgn)}</div>
+          <div className="stat-label">Загуба (лв)</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{fmtNum(data.totalValueEur, 0)} EUR</div>
+          <div className="stat-label">Загуба (евро)</div>
+        </div>
+      </div>
+
+      {data.bySector?.length > 0 && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h3>Загуби по сектор</h3>
+          <table>
+            <thead><tr><th>Сектор</th><th>Брой</th><th>Стойност (лв)</th></tr></thead>
+            <tbody>
+              {data.bySector.map(s => (
+                <tr key={s.sector}><td><strong>{s.sector}</strong></td><td>{s.count}</td><td style={{color:'var(--danger)'}}>{fmtBgn(s.valueBgn)}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {data.byCategory?.length > 0 && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h3>Загуби по категория</h3>
+          <table>
+            <thead><tr><th>Категория</th><th>Брой</th><th>Стойност (лв)</th><th>Ест. цена/бр (лв)</th></tr></thead>
+            <tbody>
+              {data.byCategory.map(c => (
+                <tr key={c.category}>
+                  <td><strong>{CAT_BG[c.category] || c.category}</strong></td>
+                  <td>{c.count}</td>
+                  <td style={{color:'var(--danger)'}}>{fmtBgn(c.valueBgn)}</td>
+                  <td>{fmtBgn(data.costEstimates?.[c.category] || 0)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {data.byDate?.length > 0 && (
+        <div className="card">
+          <h3>Загуби по дата</h3>
+          <table>
+            <thead><tr><th>Дата</th><th>Брой</th><th>Стойност (лв)</th></tr></thead>
+            <tbody>
+              {data.byDate.map(d => (
+                <tr key={d.date}><td>{fmtDate(d.date)}</td><td>{d.count}</td><td style={{color:'var(--danger)'}}>{fmtBgn(d.valueBgn)}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
+  )
+}
+
+// ═══ Daily Input/Output Report (Spec Section IV.Д) ═══
+function DailyIOReport() {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0])
+
+  const load = () => {
+    setLoading(true)
+    api('reports.dailyIO', { date }).then(r => setData(r.dailyIO)).catch(console.error).finally(() => setLoading(false))
+  }
+  useEffect(() => { load() }, [date])
+
+  if (loading) return <div className="loading">Зареждане...</div>
+  if (!data) return <div className="loading">Няма данни</div>
+
+  return (
+    <>
+      <div className="filters" style={{ marginBottom: 16 }}>
+        <input type="date" value={date} onChange={e => setDate(e.target.value)} />
+      </div>
+
+      <div className="grid grid-2" style={{ marginBottom: 16, gap: 16 }}>
+        <div className="card">
+          <h3 style={{ color: 'var(--success)' }}>ВХОД (Input)</h3>
+          <table>
+            <tbody>
+              <tr><td>Произведен фураж</td><td><strong>{fmtNum(data.input?.feedProducedTons, 2)} т</strong> ({data.input?.feedProductionBatches} партиди)</td></tr>
+              <tr><td>Доставен фураж (по халета)</td><td><strong>{fmtNum(data.input?.feedDeliveredTons, 2)} т</strong> ({data.input?.deliveryRoutes} маршрута)</td></tr>
+              <tr><td>Разход суровини</td><td><strong>{fmtBgn(data.input?.rawMaterialsCostBgn)}</strong></td></tr>
+              <tr><td>Живородени</td><td><strong>{data.input?.bornAlive}</strong></td></tr>
+              <tr><td>Мъртвородени</td><td>{data.input?.bornDead}</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div className="card">
+          <h3 style={{ color: 'var(--danger)' }}>ИЗХОД (Output)</h3>
+          <table>
+            <tbody>
+              <tr><td>Продадени (глави)</td><td><strong>{data.output?.soldHeads}</strong></td></tr>
+              <tr><td>Продадени (кг)</td><td><strong>{fmtNum(data.output?.soldKg, 1)} кг</strong></td></tr>
+              <tr><td>Приход от продажби</td><td><strong>{fmtBgn(data.output?.soldRevenueBgn)}</strong></td></tr>
+              <tr><td>Умрели</td><td style={{color: data.output?.deaths > 0 ? 'var(--danger)' : undefined}}><strong>{data.output?.deaths}</strong></td></tr>
+              <tr><td>Ест. прираст (кг)</td><td><strong>{fmtNum(data.output?.estimatedWeightGainKg, 0)} кг</strong></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="card">
+        <h3>Баланс</h3>
+        <table>
+          <tbody>
+            <tr><td>Текущ брой животни</td><td><strong>{data.balance?.currentAnimalCount}</strong></td></tr>
+            <tr><td>Финишъри в производство</td><td><strong>{data.balance?.finishersInProduction}</strong></td></tr>
+          </tbody>
+        </table>
+      </div>
     </>
   )
 }

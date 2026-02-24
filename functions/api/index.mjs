@@ -307,6 +307,17 @@ export async function handler(event) {
     if (action === 'regulatory.export') return await regulatoryExport(db, body);
     if (action === 'regulatory.stats') return await regulatoryStats(db);
 
+    // ═════════════════════════════════════════════════════════════════
+    // ADDITIONAL: Water monitoring, DanBred Index, Employee Profitability, Mortality Value, Daily I/O
+    // ═════════════════════════════════════════════════════════════════
+    if (action === 'water.record') return await waterRecord(db, body);
+    if (action === 'water.history') return await waterHistory(db, body);
+    if (action === 'water.checkAlerts') return await waterCheckAlerts(db);
+    if (action === 'reports.danbredIndex') return await reportsDanbredIndex(db, body);
+    if (action === 'reports.employeeProfitability') return await reportsEmployeeProfitability(db, body);
+    if (action === 'reports.mortalityValue') return await reportsMortalityValue(db, body);
+    if (action === 'reports.dailyIO') return await reportsDailyIO(db, body);
+
     return err(400, `Unknown action: ${action}`);
   } catch (error) {
     console.error('API Error:', error);
@@ -1511,6 +1522,25 @@ async function dashboardBundle(db) {
     }
   } catch {}
 
+  // Water consumption summary
+  let water = { todayReadings: 0, alertsToday: 0, avgConsumption: 0 };
+  try {
+    const wToday = await db.query(`SELECT COUNT(*) FROM water_consumption WHERE reading_date = CURRENT_DATE`);
+    water.todayReadings = parseInt(wToday.rows[0].count);
+    const wAlerts = await db.query(`SELECT COUNT(*) FROM alerts WHERE category = 'water' AND is_acknowledged = false`);
+    water.alertsToday = parseInt(wAlerts.rows[0].count);
+    const wAvg = await db.query(`SELECT AVG(consumption_m3) as avg FROM water_consumption WHERE reading_date >= CURRENT_DATE - INTERVAL '7 days'`);
+    water.avgConsumption = parseFloat(wAvg.rows[0]?.avg || 0).toFixed(1);
+  } catch {}
+
+  // Employee profitability summary
+  let employeeProfit = { profitPerEmployee: 0, revenuePerEmployee: 0, labourCostPerKg: 0, totalStaff: 125 };
+  try {
+    const epRes = await reportsEmployeeProfitability(db, { month_key: currentMonth });
+    const epData = JSON.parse(epRes.body).employeeProfitability;
+    employeeProfit = { profitPerEmployee: epData.profitPerEmployee, revenuePerEmployee: epData.revenuePerEmployee, labourCostPerKg: epData.labourCostPerKg, totalStaff: epData.totalStaff };
+  } catch {}
+
   // Phase 6: Traceability summary
   let traceability = { totalRecords: 0, totalDocuments: 0, recentDocuments: [] };
   try {
@@ -1541,7 +1571,9 @@ async function dashboardBundle(db) {
     logistics,
     biosecurity,
     bonuses,
-    traceability
+    traceability,
+    water,
+    employeeProfit
   });
 }
 
@@ -4163,4 +4195,354 @@ async function regulatoryStats(db) {
   const recent = await db.query(`SELECT id, document_type, reference_number, title, status, created_at FROM regulatory_documents ORDER BY created_at DESC LIMIT 5`);
   const total = await db.query(`SELECT COUNT(*) FROM regulatory_documents`);
   return ok({ stats: { total: parseInt(total.rows[0].count), byType: byType.rows, recent: recent.rows } });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WATER CONSUMPTION MONITORING (Spec Section I.4 — Water flow alert)
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function waterRecord(db, { hall_id, reading_date, consumption_m3, animal_count, recorded_by, notes }) {
+  if (!hall_id || !reading_date || consumption_m3 === undefined) return err(400, 'hall_id, reading_date и consumption_m3 са задължителни');
+  const litersPerAnimal = (animal_count && animal_count > 0) ? (consumption_m3 * 1000 / animal_count) : null;
+  const result = await db.query(
+    `INSERT INTO water_consumption (hall_id, reading_date, consumption_m3, animal_count, liters_per_animal, recorded_by, notes)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     ON CONFLICT (hall_id, reading_date) DO UPDATE SET consumption_m3 = $3, animal_count = $4, liters_per_animal = $5, recorded_by = $6, notes = $7
+     RETURNING *`,
+    [hall_id, reading_date, consumption_m3, animal_count, litersPerAnimal, recorded_by || null, notes || null]
+  );
+  return ok({ water: result.rows[0] });
+}
+
+async function waterHistory(db, { hall_id, from_date, to_date, limit }) {
+  const fd = from_date || new Date(Date.now() - 30*86400000).toISOString().split('T')[0];
+  const td = to_date || new Date().toISOString().split('T')[0];
+  let q = `SELECT wc.*, h.name as hall_name, s.name as sector_name, p.name as recorded_by_name
+    FROM water_consumption wc JOIN halls h ON h.id = wc.hall_id JOIN sectors s ON s.id = h.sector_id
+    LEFT JOIN personnel p ON p.id = wc.recorded_by
+    WHERE wc.reading_date >= $1 AND wc.reading_date <= $2`;
+  const params = [fd, td];
+  let idx = 3;
+  if (hall_id) { q += ` AND wc.hall_id = $${idx++}`; params.push(hall_id); }
+  q += ` ORDER BY wc.reading_date DESC, h.name LIMIT $${idx++}`;
+  params.push(limit || 200);
+  const result = await db.query(q, params);
+  return ok({ history: result.rows, from: fd, to: td });
+}
+
+async function waterCheckAlerts(db) {
+  // Spec: 15% drop in consumption over 24h triggers alert (indicator for PRRS/Flu)
+  const today = new Date().toISOString().split('T')[0];
+  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+  const prevDay = new Date(Date.now() - 2*86400000).toISOString().split('T')[0];
+  const alerts = [];
+
+  const todayData = await db.query(
+    `SELECT wc.hall_id, h.name as hall_name, wc.consumption_m3
+     FROM water_consumption wc JOIN halls h ON h.id = wc.hall_id
+     WHERE wc.reading_date = $1`, [today.length ? today : yesterday]
+  );
+
+  for (const current of todayData.rows) {
+    // Compare with previous day average (or 7-day average)
+    const prev = await db.query(
+      `SELECT AVG(consumption_m3) as avg_consumption FROM water_consumption
+       WHERE hall_id = $1 AND reading_date >= $2 AND reading_date < $3`,
+      [current.hall_id, new Date(Date.now() - 7*86400000).toISOString().split('T')[0], today]
+    );
+    const avgPrev = parseFloat(prev.rows[0]?.avg_consumption || 0);
+    if (avgPrev > 0) {
+      const dropPct = ((avgPrev - parseFloat(current.consumption_m3)) / avgPrev) * 100;
+      if (dropPct >= 15) {
+        // Create alert
+        await db.query(
+          `INSERT INTO alerts (severity, category, message, related_entity_type, related_entity_id, threshold_name, threshold_value, target_value)
+           VALUES ('critical', 'water', $1, 'hall', $2, 'water_drop_15pct', $3, $4)`,
+          [`⚠️ Спад на водата в ${current.hall_name}: ${Math.round(dropPct)}% (от ${avgPrev.toFixed(1)}m³ на ${current.consumption_m3}m³). Възможна инфекция (ПРРС/Грип)!`,
+           current.hall_id, Math.round(dropPct * 10) / 10, 15]
+        );
+        alerts.push({ hall: current.hall_name, drop_pct: Math.round(dropPct * 10) / 10, current: parseFloat(current.consumption_m3), average: avgPrev });
+      }
+    }
+  }
+  return ok({ checked: todayData.rows.length, alerts });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DANbred INTENSITY INDEX (Spec Section I.3 — DI = Weaned / Working hours)
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function reportsDanbredIndex(db, { from_date, to_date }) {
+  const fd = from_date || new Date(Date.now() - 90*86400000).toISOString().split('T')[0];
+  const td = to_date || new Date().toISOString().split('T')[0];
+
+  // Weaned piglets per sector
+  const weaned = await db.query(`
+    SELECT s.code as sector_code, s.name as sector_name,
+      COALESCE(SUM(l.weaned_count), 0) as total_weaned
+    FROM litters l
+    JOIN animals a ON a.id = l.birth_sow_id
+    JOIN halls h ON h.id = a.current_hall_id
+    JOIN sectors s ON s.id = h.sector_id
+    WHERE l.weaning_date >= $1 AND l.weaning_date <= $2
+    GROUP BY s.code, s.name
+  `, [fd, td]);
+
+  // Personnel working hours (estimate: 8h/day * working days * personnel count per sector)
+  const personnel = await db.query(`
+    SELECT s.code as sector_code, s.name as sector_name, COUNT(DISTINCT ph.personnel_id) as staff_count
+    FROM personnel_halls ph
+    JOIN halls h ON h.id = ph.hall_id
+    JOIN sectors s ON s.id = h.sector_id
+    JOIN personnel p ON p.id = ph.personnel_id AND p.is_active = true
+    GROUP BY s.code, s.name
+  `);
+
+  const days = Math.max(1, Math.round((new Date(td) - new Date(fd)) / 86400000));
+  const workingDays = Math.round(days * 5 / 7); // Approximate working days
+
+  const indices = weaned.rows.map(w => {
+    const p = personnel.rows.find(pr => pr.sector_code === w.sector_code);
+    const staffCount = parseInt(p?.staff_count || 1);
+    const workingHours = staffCount * workingDays * 8;
+    const danbredIndex = workingHours > 0 ? (parseInt(w.total_weaned) / workingHours) : 0;
+    return {
+      sector_code: w.sector_code,
+      sector_name: w.sector_name,
+      total_weaned: parseInt(w.total_weaned),
+      staff_count: staffCount,
+      working_hours: workingHours,
+      danbred_index: Math.round(danbredIndex * 1000) / 1000
+    };
+  });
+
+  // Farm-wide totals
+  const totalWeaned = indices.reduce((s, i) => s + i.total_weaned, 0);
+  const totalStaff = indices.reduce((s, i) => s + i.staff_count, 0);
+  const totalHours = totalStaff * workingDays * 8;
+  const farmIndex = totalHours > 0 ? Math.round((totalWeaned / totalHours) * 1000) / 1000 : 0;
+
+  return ok({
+    danbredIndex: { from: fd, to: td, days, workingDays, bySector: indices, farm: { totalWeaned, totalStaff, totalHours, index: farmIndex } }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PER-EMPLOYEE PROFITABILITY (Spec Final Package #7 — Dashboard GAD)
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function reportsEmployeeProfitability(db, { month_key }) {
+  const mk = month_key || new Date().toISOString().substring(0, 7);
+  const monthStart = `${mk}-01`;
+
+  // Total revenue for month
+  const rev = await db.query(`SELECT COALESCE(SUM(total_amount_bgn), 0) as total FROM sales WHERE sale_date >= $1 AND sale_date < ($1::date + INTERVAL '1 month')`, [monthStart]);
+  const revenue = parseFloat(rev.rows[0].total);
+
+  // Total expenses
+  const exp = await db.query(`SELECT COALESCE(SUM(amount_bgn), 0) as total FROM expense_entries WHERE month_key = $1`, [mk]);
+  const expenses = parseFloat(exp.rows[0].total);
+
+  // Total kg sold
+  const kgSold = await db.query(`SELECT COALESCE(SUM(total_weight_kg), 0) as total FROM sales WHERE sale_date >= $1 AND sale_date < ($1::date + INTERVAL '1 month')`, [monthStart]);
+  const totalKg = parseFloat(kgSold.rows[0].total);
+
+  // Active personnel count
+  const staffCount = await db.query(`SELECT COUNT(*) FROM personnel WHERE is_active = true`);
+  const totalStaff = parseInt(staffCount.rows[0].count) || 1;
+
+  // By role breakdown
+  const byRole = await db.query(`
+    SELECT p.role, COUNT(p.id) as count,
+      COALESCE(st.base_salary_bgn, 0) as base_salary,
+      COALESCE(SUM(ee.amount_bgn), 0) as total_salary_cost
+    FROM personnel p
+    LEFT JOIN salary_templates st ON st.role = p.role
+    LEFT JOIN expense_entries ee ON ee.category = 'salary' AND ee.month_key = $1
+      AND ee.description LIKE '%' || p.name || '%'
+    WHERE p.is_active = true
+    GROUP BY p.role, st.base_salary_bgn
+    ORDER BY p.role
+  `, [mk]);
+
+  const profit = revenue - expenses;
+  const profitPerEmployee = totalStaff > 0 ? Math.round(profit / totalStaff * 100) / 100 : 0;
+  const revenuePerEmployee = totalStaff > 0 ? Math.round(revenue / totalStaff * 100) / 100 : 0;
+  const kgPerEmployee = totalStaff > 0 ? Math.round(totalKg / totalStaff * 100) / 100 : 0;
+  const costPerKg = totalKg > 0 ? Math.round(expenses / totalKg * 100) / 100 : 0;
+  // Labour cost per kg (spec formula: LC_kg = Total salary / Total kg sold)
+  const salaryCost = await db.query(`SELECT COALESCE(SUM(amount_bgn), 0) as total FROM expense_entries WHERE month_key = $1 AND category = 'salary'`, [mk]);
+  const labourCostPerKg = totalKg > 0 ? Math.round(parseFloat(salaryCost.rows[0].total) / totalKg * 100) / 100 : 0;
+
+  return ok({
+    employeeProfitability: {
+      month: mk,
+      totalStaff,
+      revenue: Math.round(revenue * 100) / 100,
+      expenses: Math.round(expenses * 100) / 100,
+      profit: Math.round(profit * 100) / 100,
+      totalKgSold: Math.round(totalKg * 100) / 100,
+      profitPerEmployee,
+      revenuePerEmployee,
+      kgPerEmployee,
+      costPerKg,
+      labourCostPerKg,
+      byRole: byRole.rows
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MORTALITY BY MONETARY VALUE (Spec Section IV.Д — "Mortality by financial value")
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function reportsMortalityValue(db, { from_date, to_date }) {
+  const fd = from_date || new Date(Date.now() - 30*86400000).toISOString().split('T')[0];
+  const td = to_date || new Date().toISOString().split('T')[0];
+
+  // Get death events with animal details
+  const deaths = await db.query(`
+    SELECT e.event_date, e.details, a.category, a.ear_tag, h.name as hall_name, s.name as sector_name
+    FROM events e
+    LEFT JOIN animals a ON a.id = e.animal_id
+    LEFT JOIN halls h ON h.id = COALESCE(e.hall_id, a.current_hall_id)
+    LEFT JOIN sectors s ON s.id = h.sector_id
+    WHERE e.event_type IN ('death', 'group_mortality') AND e.event_date >= $1 AND e.event_date <= $2
+    ORDER BY e.event_date DESC
+  `, [fd, td]);
+
+  // Estimate cost per dead animal based on category (feed consumed until death)
+  // Approximate feed cost per animal by category:
+  const costEstimates = {
+    suckling_piglet: 15,   // BGN - minimal feed, mainly colostrum/milk
+    weaner: 85,            // BGN - starter feed consumed (~12kg at ~1.85 BGN/kg)
+    finisher: 350,         // BGN - significant feed investment (~120kg at ~2.95 BGN/kg)
+    gilt: 400,             // BGN - similar to finisher + selection cost
+    sow: 250,              // BGN - replacement value consideration
+    boar: 500              // BGN - high value genetic material
+  };
+
+  let totalValue = 0;
+  let totalCount = 0;
+  const bySector = {};
+  const byCategory = {};
+  const byDate = {};
+
+  for (const d of deaths.rows) {
+    const count = d.details?.count ? parseInt(d.details.count) : 1;
+    const cat = d.category || d.details?.category || 'finisher';
+    const value = (costEstimates[cat] || 100) * count;
+
+    totalValue += value;
+    totalCount += count;
+
+    const sector = d.sector_name || 'Неопределен';
+    if (!bySector[sector]) bySector[sector] = { count: 0, value: 0 };
+    bySector[sector].count += count;
+    bySector[sector].value += value;
+
+    if (!byCategory[cat]) byCategory[cat] = { count: 0, value: 0 };
+    byCategory[cat].count += count;
+    byCategory[cat].value += value;
+
+    const dateKey = d.event_date?.toISOString?.()?.split('T')[0] || d.event_date?.substring?.(0, 10) || fd;
+    if (!byDate[dateKey]) byDate[dateKey] = { count: 0, value: 0 };
+    byDate[dateKey].count += count;
+    byDate[dateKey].value += value;
+  }
+
+  return ok({
+    mortalityValue: {
+      from: fd, to: td,
+      totalCount,
+      totalValueBgn: Math.round(totalValue * 100) / 100,
+      totalValueEur: Math.round(totalValue / EUR_BGN_RATE * 100) / 100,
+      bySector: Object.entries(bySector).map(([name, d]) => ({ sector: name, ...d, valueBgn: Math.round(d.value * 100) / 100 })),
+      byCategory: Object.entries(byCategory).map(([cat, d]) => ({ category: cat, ...d, valueBgn: Math.round(d.value * 100) / 100 })),
+      byDate: Object.entries(byDate).map(([date, d]) => ({ date, ...d, valueBgn: Math.round(d.value * 100) / 100 })).sort((a, b) => b.date.localeCompare(a.date)),
+      costEstimates
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DAILY INPUT/OUTPUT REPORT (Spec Section IV.Д — "Daily In-Out report")
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function reportsDailyIO(db, { date, from_date, to_date }) {
+  const targetDate = date || new Date().toISOString().split('T')[0];
+  const fd = from_date || targetDate;
+  const td = to_date || targetDate;
+
+  // INPUT: Feed produced (tons)
+  const feedProduced = await db.query(
+    `SELECT COALESCE(SUM(fpb.quantity_tons), 0) as total_tons,
+       COUNT(fpb.id) as batch_count
+     FROM feed_production_batches fpb
+     WHERE fpb.batch_date >= $1 AND fpb.batch_date <= $2`, [fd, td]);
+
+  // INPUT: Feed delivered to halls (from routes)
+  const feedDelivered = await db.query(
+    `SELECT COALESCE(SUM(ds.delivered_tons), 0) as total_tons,
+       COUNT(DISTINCT dr.id) as route_count
+     FROM delivery_stops ds
+     JOIN delivery_routes dr ON dr.id = ds.route_id
+     WHERE dr.status = 'completed' AND dr.route_date >= $1 AND dr.route_date <= $2`, [fd, td]);
+
+  // INPUT: Raw materials received (component restocks)
+  const rawMaterials = await db.query(
+    `SELECT COALESCE(SUM(ee.amount_bgn), 0) as total_bgn, COUNT(ee.id) as entries
+     FROM expense_entries ee WHERE ee.category = 'feed' AND ee.entry_date >= $1 AND ee.entry_date <= $2`, [fd, td]);
+
+  // OUTPUT: Animals born
+  const born = await db.query(
+    `SELECT COALESCE(SUM(l.born_alive), 0) as alive, COALESCE(SUM(l.stillborn), 0) as dead
+     FROM litters l WHERE l.birth_date >= $1 AND l.birth_date <= $2`, [fd, td]);
+
+  // OUTPUT: Animals sold/dispatched
+  const sold = await db.query(
+    `SELECT COALESCE(SUM(s.head_count), 0) as heads, COALESCE(SUM(s.total_weight_kg), 0) as kg,
+       COALESCE(SUM(s.total_amount_bgn), 0) as revenue_bgn
+     FROM sales s WHERE s.sale_date >= $1 AND s.sale_date <= $2`, [fd, td]);
+
+  // OUTPUT: Deaths
+  const deaths = await db.query(
+    `SELECT COUNT(*) as count FROM events
+     WHERE event_type IN ('death', 'group_mortality') AND event_date >= $1 AND event_date <= $2`, [fd, td]);
+
+  // Animal balance
+  const currentCount = await db.query(
+    `SELECT COUNT(*) as total FROM animals WHERE status != 'culled'`);
+
+  // Weight gain estimate (ADG * animal count * days)
+  const finisherCount = await db.query(
+    `SELECT COALESCE(SUM(current_count), 0) as total FROM animal_groups WHERE category = 'finisher' AND exit_date IS NULL`);
+  const days = Math.max(1, Math.round((new Date(td) - new Date(fd)) / 86400000) + 1);
+  const estimatedGainKg = parseInt(finisherCount.rows[0].total) * 1.0 * days; // 1000g/day = 1kg/day
+
+  return ok({
+    dailyIO: {
+      from: fd, to: td, days,
+      input: {
+        feedProducedTons: parseFloat(feedProduced.rows[0].total_tons),
+        feedProductionBatches: parseInt(feedProduced.rows[0].batch_count),
+        feedDeliveredTons: parseFloat(feedDelivered.rows[0].total_tons),
+        deliveryRoutes: parseInt(feedDelivered.rows[0].route_count),
+        rawMaterialsCostBgn: parseFloat(rawMaterials.rows[0].total_bgn),
+        bornAlive: parseInt(born.rows[0].alive),
+        bornDead: parseInt(born.rows[0].dead)
+      },
+      output: {
+        soldHeads: parseInt(sold.rows[0].heads),
+        soldKg: parseFloat(sold.rows[0].kg),
+        soldRevenueBgn: parseFloat(sold.rows[0].revenue_bgn),
+        deaths: parseInt(deaths.rows[0].count),
+        estimatedWeightGainKg: Math.round(estimatedGainKg)
+      },
+      balance: {
+        currentAnimalCount: parseInt(currentCount.rows[0].total),
+        finishersInProduction: parseInt(finisherCount.rows[0].total)
+      }
+    }
+  });
 }
