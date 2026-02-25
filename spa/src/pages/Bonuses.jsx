@@ -118,9 +118,9 @@ export default function Bonuses() {
         </div>
       )}
 
-      <div className="tabs" style={{ marginBottom: 16, display: 'flex', gap: 8 }}>
+      <div className="tabs">
         {[['rules', 'Правила'], ['results', 'Резултати'], ['history', 'История']].map(([key, label]) => (
-          <button key={key} className={`btn ${section === key ? 'primary' : ''}`} onClick={() => setSection(key)}>{label}</button>
+          <div key={key} className={`tab ${section === key ? 'active' : ''}`} onClick={() => setSection(key)}>{label}</div>
         ))}
       </div>
 

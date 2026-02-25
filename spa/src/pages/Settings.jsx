@@ -129,10 +129,10 @@ export default function Settings() {
     <div className="page">
       <h2>Настройки</h2>
 
-      <div className="tabs" style={{ marginBottom: 16 }}>
-        <button className={tab === 'users' ? 'tab active' : 'tab'} onClick={() => setTab('users')}>Потребители</button>
-        <button className={tab === 'ai' ? 'tab active' : 'tab'} onClick={() => setTab('ai')}>AI Асистент</button>
-        <button className={tab === 'db' ? 'tab active' : 'tab'} onClick={() => setTab('db')}>База данни</button>
+      <div className="tabs">
+        <div className={`tab ${tab === 'users' ? 'active' : ''}`} onClick={() => setTab('users')}>Потребители</div>
+        <div className={`tab ${tab === 'ai' ? 'active' : ''}`} onClick={() => setTab('ai')}>AI Асистент</div>
+        <div className={`tab ${tab === 'db' ? 'active' : ''}`} onClick={() => setTab('db')}>База данни</div>
       </div>
 
       {tab === 'users' && (

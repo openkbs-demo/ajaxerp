@@ -136,9 +136,9 @@ export default function Biosecurity() {
         <h1>Биосигурност</h1>
       </div>
 
-      <div className="tabs" style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      <div className="tabs">
         {[['access', 'Достъп'], ['violations', 'Нарушения'], ['hygiene', 'Хигиена халета'], ['withdrawals', 'Карентни срокове'], ['heatmap', 'Heatmap'], ['locations', 'Текущи позиции']].map(([key, label]) => (
-          <button key={key} className={`btn ${tab === key ? 'primary' : ''}`} onClick={() => setTab(key)}>{label}</button>
+          <div key={key} className={`tab ${tab === key ? 'active' : ''}`} onClick={() => setTab(key)}>{label}</div>
         ))}
       </div>
 
