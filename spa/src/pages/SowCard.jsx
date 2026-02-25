@@ -44,6 +44,10 @@ export default function SowCard() {
   const [showEvent, setShowEvent] = useState(false)
   const [eventForm, setEventForm] = useState({ event_type: 'vaccination', details: {} })
   const [halls, setHalls] = useState([])
+  const [showCrossFoster, setShowCrossFoster] = useState(false)
+  const [cfForm, setCfForm] = useState({ litter_id: '', nurse_sow_id: '', piglet_count: '', max: 0 })
+  const [sows, setSows] = useState([])
+  const [selectedLitters, setSelectedLitters] = useState([])
 
   const load = async () => {
     setLoading(true)
@@ -72,11 +76,41 @@ export default function SowCard() {
       if (eventForm.event_type === 'transfer' && eventForm.details.to_hall_id) {
         payload.hall_id = parseInt(eventForm.details.to_hall_id)
       }
+      if (eventForm.event_type === 'weaning' && selectedLitters.length > 0) {
+        payload.details = { ...payload.details, litter_ids: selectedLitters }
+      }
       await api('events.record', payload)
       setShowEvent(false)
       setEventForm({ event_type: 'vaccination', details: {} })
+      setSelectedLitters([])
       load()
     } catch (err) { alert(err.message) }
+  }
+
+  const openCrossFoster = async (litterId, bornAlive) => {
+    try {
+      const res = await api('animals.list', { status: 'lactating', limit: 200 })
+      setSows((res.animals || []).filter(a => a.id !== parseInt(id)))
+    } catch { setSows([]) }
+    setCfForm({ litter_id: litterId, nurse_sow_id: '', piglet_count: bornAlive, max: bornAlive })
+    setShowCrossFoster(true)
+  }
+
+  const submitCrossFoster = async (e) => {
+    e.preventDefault()
+    try {
+      await api('litters.crossFoster', {
+        litter_id: parseInt(cfForm.litter_id),
+        nurse_sow_id: parseInt(cfForm.nurse_sow_id),
+        piglet_count: parseInt(cfForm.piglet_count)
+      })
+      setShowCrossFoster(false)
+      load()
+    } catch (err) { alert(err.message) }
+  }
+
+  const toggleLitter = (lid) => {
+    setSelectedLitters(prev => prev.includes(lid) ? prev.filter(x => x !== lid) : [...prev, lid])
   }
 
   if (loading) return <div className="loading">Зареждане...</div>
@@ -180,7 +214,7 @@ export default function SowCard() {
           <h3>Репродуктивна история</h3>
           {reproductionSummary?.length > 0 ? (
             <table>
-              <thead><tr><th>Прасене</th><th>Дата раждане</th><th>Живородени</th><th>Мъртвородени</th><th>Отбити</th><th>Тегло отбиване</th><th>Дата отбиване</th><th>Партида</th><th>Кърмачка</th></tr></thead>
+              <thead><tr><th>Прасене</th><th>Дата раждане</th><th>Живородени</th><th>Мъртвородени</th><th>Отбити</th><th>Тегло отбиване</th><th>Дата отбиване</th><th>Партида</th><th>Кърмачка</th><th></th></tr></thead>
               <tbody>
                 {reproductionSummary.map((r, i) => (
                   <tr key={i}>
@@ -192,7 +226,12 @@ export default function SowCard() {
                     <td>{r.weaningWeight ? `${r.weaningWeight} кг` : '-'}</td>
                     <td>{fmtDate(r.weaningDate)}</td>
                     <td>{r.groupId ? <Link to={`/groups/${r.groupId}`}>{r.groupName}</Link> : '-'}</td>
-                    <td>{r.nurseEarTag || '-'}</td>
+                    <td>{r.nurseSowId ? <Link to={`/animals/${r.nurseSowId}`}>{r.nurseEarTag}</Link> : '-'}</td>
+                    <td>
+                      {!r.weaningDate && animal.status === 'lactating' && (
+                        <button className="btn btn-sm btn-outline" onClick={() => openCrossFoster(r.litterId, r.bornAlive)}>Кърмачка</button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -322,18 +361,48 @@ export default function SowCard() {
                 </div>
               )}
 
-              {eventForm.event_type === 'weaning' && (
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Брой отбити</label>
-                    <input type="number" min="0" value={eventForm.details.weaned_count || ''} onChange={e => setEventForm(p => ({ ...p, details: { ...p.details, weaned_count: parseInt(e.target.value) || 0 } }))} required />
-                  </div>
-                  <div className="form-group">
-                    <label>Тегло на гнездото (кг)</label>
-                    <input type="number" step="0.1" min="0" value={eventForm.details.weaning_weight_kg || ''} onChange={e => setEventForm(p => ({ ...p, details: { ...p.details, weaning_weight_kg: parseFloat(e.target.value) || 0 } }))} />
-                  </div>
-                </div>
-              )}
+              {eventForm.event_type === 'weaning' && (() => {
+                const ownUnweaned = (litters || []).filter(l => !l.weaning_date)
+                const nursedUnweaned = (nursedLitters || []).filter(l => !l.weaning_date)
+                const allUnweaned = [...ownUnweaned, ...nursedUnweaned]
+                return (
+                  <>
+                    {allUnweaned.length > 0 && (
+                      <div className="form-group">
+                        <label>Гнезда за отбиване</label>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                          {allUnweaned.map(l => {
+                            const sel = selectedLitters.includes(l.id)
+                            return (
+                              <div key={l.id} onClick={() => toggleLitter(l.id)}
+                                style={{
+                                  padding: '6px 14px', borderRadius: 16, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                                  border: '2px solid', transition: 'all 0.15s',
+                                  background: sel ? '#e8f5e9' : '#f5f5f5',
+                                  color: sel ? 'var(--success)' : 'var(--text-secondary)',
+                                  borderColor: sel ? 'var(--success)' : 'transparent'
+                                }}>
+                                {sel ? '\u2713 ' : ''}Прасене #{l.parity_number} — {l.born_alive} жив.
+                                {l.nurse_sow_id ? ' (кърмачка)' : ''}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>Брой отбити (общо)</label>
+                        <input type="number" min="0" value={eventForm.details.weaned_count || ''} onChange={e => setEventForm(p => ({ ...p, details: { ...p.details, weaned_count: parseInt(e.target.value) || 0 } }))} required />
+                      </div>
+                      <div className="form-group">
+                        <label>Тегло на гнездото (кг)</label>
+                        <input type="number" step="0.1" min="0" value={eventForm.details.weaning_weight_kg || ''} onChange={e => setEventForm(p => ({ ...p, details: { ...p.details, weaning_weight_kg: parseFloat(e.target.value) || 0 } }))} />
+                      </div>
+                    </div>
+                  </>
+                )
+              })()}
 
               {eventForm.event_type === 'vaccination' && (
                 <div className="form-row">
@@ -400,6 +469,37 @@ export default function SowCard() {
 
               <div className="modal-actions">
                 <button type="button" className="btn btn-outline" onClick={() => setShowEvent(false)}>Отказ</button>
+                <button type="submit" className="btn btn-primary">Запиши</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* Cross-fostering modal */}
+      {showCrossFoster && (
+        <div className="modal-overlay" onClick={() => setShowCrossFoster(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <h2>Определяне на кърмачка</h2>
+            <form onSubmit={submitCrossFoster}>
+              <div className="form-group">
+                <label>Брой прасета за преместване</label>
+                <input type="number" min="1" max={cfForm.max}
+                  value={cfForm.piglet_count}
+                  onChange={e => setCfForm(p => ({ ...p, piglet_count: e.target.value }))}
+                  required />
+                <small style={{ color: 'var(--text-secondary)' }}>от общо {cfForm.max} живородени</small>
+              </div>
+              <div className="form-group">
+                <label>Кърмачка (свиня)</label>
+                <select value={cfForm.nurse_sow_id} onChange={e => setCfForm(p => ({ ...p, nurse_sow_id: e.target.value }))} required>
+                  <option value="">Избери кърмачка...</option>
+                  {sows.map(s => (
+                    <option key={s.id} value={s.id}>{s.ear_tag} — {s.hall_name || 'без хале'}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="modal-actions">
+                <button type="button" className="btn btn-outline" onClick={() => setShowCrossFoster(false)}>Отказ</button>
                 <button type="submit" className="btn btn-primary">Запиши</button>
               </div>
             </form>

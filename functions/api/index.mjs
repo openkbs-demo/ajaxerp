@@ -666,6 +666,7 @@ async function animalsCard(db, { id, ear_tag }) {
     weaningWeight: l.weaning_weight_kg,
     weaningDate: l.weaning_date,
     nurseEarTag: l.nurse_ear_tag,
+    nurseSowId: l.nurse_sow_id || null,
     groupId: litterGroupMap[l.id]?.id || null,
     groupName: litterGroupMap[l.id]?.group_name || null
   }));
@@ -790,16 +791,36 @@ async function eventsRecord(db, { event_type, animal_id, group_id, hall_id, perf
       if (event_type === 'weaning') {
         const d = details || {};
         const weanDate = event_date || new Date().toISOString();
-        // Update the latest litter for this sow
-        const litterUpd = await db.query(
-          `UPDATE litters SET weaned_count = $1, weaning_weight_kg = $2, weaning_date = $3
-           WHERE id = (SELECT id FROM litters WHERE birth_sow_id = $4 AND weaning_date IS NULL ORDER BY birth_date DESC LIMIT 1) RETURNING id`,
-          [d.weaned_count || 0, d.weaning_weight_kg || null, weanDate, animal_id]
-        );
+        let litterIds = [];
 
-        // Auto-create weaner group for this litter
-        if (litterUpd.rows.length > 0 && d.weaned_count > 0) {
-          const litterId = litterUpd.rows[0].id;
+        if (d.litter_ids && d.litter_ids.length > 0) {
+          // Multi-litter weaning: update all selected litters
+          for (const lid of d.litter_ids) {
+            await db.query(
+              `UPDATE litters SET weaned_count = COALESCE(weaned_count, born_alive), weaning_date = $1 WHERE id = $2 AND weaning_date IS NULL`,
+              [weanDate, lid]
+            );
+          }
+          // Set explicit weaned_count/weight on the first litter
+          if (d.weaned_count) {
+            await db.query(
+              `UPDATE litters SET weaned_count = $1, weaning_weight_kg = $2 WHERE id = $3`,
+              [d.weaned_count, d.weaning_weight_kg || null, d.litter_ids[0]]
+            );
+          }
+          litterIds = d.litter_ids;
+        } else {
+          // Default: auto-find latest unweaned litter for this sow
+          const litterUpd = await db.query(
+            `UPDATE litters SET weaned_count = $1, weaning_weight_kg = $2, weaning_date = $3
+             WHERE id = (SELECT id FROM litters WHERE birth_sow_id = $4 AND weaning_date IS NULL ORDER BY birth_date DESC LIMIT 1) RETURNING id`,
+            [d.weaned_count || 0, d.weaning_weight_kg || null, weanDate, animal_id]
+          );
+          if (litterUpd.rows.length > 0) litterIds = [litterUpd.rows[0].id];
+        }
+
+        // Auto-create weaner group from all selected litters
+        if (litterIds.length > 0 && (d.weaned_count || 0) > 0) {
           const hallRes = await db.query('SELECT h.id, h.name FROM halls h WHERE h.id = $1', [animal.current_hall_id]);
           const hallName = hallRes.rows[0]?.name || 'Н/Д';
           const wDate = new Date(weanDate);
@@ -811,7 +832,7 @@ async function eventsRecord(db, { event_type, animal_id, group_id, hall_id, perf
           await db.query(
             `INSERT INTO animal_groups (group_name, category, hall_id, entry_date, entry_count, current_count, entry_weight_avg_kg, current_weight_avg_kg, source_litter_ids)
              VALUES ($1, 'weaner', $2, $3, $4, $4, $5, $5, $6)`,
-            [groupName, animal.current_hall_id, wDate.toISOString().split('T')[0], d.weaned_count, entryWeightAvg, JSON.stringify([litterId])]
+            [groupName, animal.current_hall_id, wDate.toISOString().split('T')[0], d.weaned_count, entryWeightAvg, JSON.stringify(litterIds)]
           );
         }
 
@@ -985,7 +1006,7 @@ async function littersList(db, { limit, weaned_only }) {
   return ok({ litters: result.rows });
 }
 
-async function littersCrossFoster(db, { litter_id, nurse_sow_id }) {
+async function littersCrossFoster(db, { litter_id, nurse_sow_id, piglet_count }) {
   if (!litter_id || !nurse_sow_id) return err(400, 'litter_id и nurse_sow_id са задължителни');
 
   const litterRes = await db.query('SELECT * FROM litters WHERE id = $1', [litter_id]);
@@ -994,16 +1015,36 @@ async function littersCrossFoster(db, { litter_id, nurse_sow_id }) {
   const nurseRes = await db.query('SELECT * FROM animals WHERE id = $1', [nurse_sow_id]);
   if (nurseRes.rows.length === 0) return err(404, 'Кърмачката не е намерена');
 
-  await db.query('UPDATE litters SET nurse_sow_id = $1 WHERE id = $2', [nurse_sow_id, litter_id]);
+  const litter = litterRes.rows[0];
+  const count = piglet_count ? Math.min(piglet_count, litter.born_alive) : litter.born_alive;
 
-  // Record as event on nurse sow
+  if (count < litter.born_alive) {
+    // Partial transfer: reduce original litter, create new litter for nurse
+    await db.query('UPDATE litters SET born_alive = born_alive - $1 WHERE id = $2', [count, litter_id]);
+    await db.query(
+      `INSERT INTO litters (birth_sow_id, nurse_sow_id, parity_number, born_alive, stillborn, mummified, birth_date)
+       VALUES ($1, $2, $3, $4, 0, 0, $5)`,
+      [litter.birth_sow_id, nurse_sow_id, litter.parity_number, count, litter.birth_date]
+    );
+  } else {
+    // Full transfer: assign nurse to existing litter
+    await db.query('UPDATE litters SET nurse_sow_id = $1 WHERE id = $2', [nurse_sow_id, litter_id]);
+  }
+
+  // Record event on nurse sow
   await db.query(
     `INSERT INTO events (event_type, animal_id, event_date, details)
      VALUES ('cross_fostering', $1, NOW(), $2)`,
-    [nurse_sow_id, JSON.stringify({ litter_id, birth_sow_id: litterRes.rows[0].birth_sow_id })]
+    [nurse_sow_id, JSON.stringify({ litter_id, birth_sow_id: litter.birth_sow_id, piglet_count: count })]
+  );
+  // Record event on birth sow
+  await db.query(
+    `INSERT INTO events (event_type, animal_id, event_date, details)
+     VALUES ('cross_fostering', $1, NOW(), $2)`,
+    [litter.birth_sow_id, JSON.stringify({ litter_id, nurse_sow_id, piglet_count: count })]
   );
 
-  return ok({ message: 'Прехвърлянето е успешно', litter_id, nurse_sow_id });
+  return ok({ message: 'Прехвърлянето е успешно', litter_id, nurse_sow_id, piglet_count: count });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
