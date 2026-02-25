@@ -15,6 +15,7 @@ import Expenses from './pages/Expenses.jsx'
 import Reports from './pages/Reports.jsx'
 import Logistics from './pages/Logistics.jsx'
 import Groups from './pages/Groups.jsx'
+import GroupCard from './pages/GroupCard.jsx'
 import Biosecurity from './pages/Biosecurity.jsx'
 import Bonuses from './pages/Bonuses.jsx'
 import Settings from './pages/Settings.jsx'
@@ -43,6 +44,7 @@ export default function App() {
         <Route path="reports" element={<Reports />} />
         <Route path="logistics" element={<Logistics />} />
         <Route path="groups" element={<Groups />} />
+        <Route path="groups/:id" element={<GroupCard />} />
         <Route path="dispatch" element={<Navigate to="/groups" replace />} />
         <Route path="traceability" element={<Navigate to="/groups" replace />} />
         <Route path="biosecurity" element={<Biosecurity />} />

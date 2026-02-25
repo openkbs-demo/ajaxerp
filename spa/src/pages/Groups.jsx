@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { api, exportCsv } from '../api.js'
 import { useAuth } from '../AuthContext.jsx'
 
@@ -29,9 +30,6 @@ export default function Groups() {
   // Groups tab state
   const [groups, setGroups] = useState([])
   const [halls, setHalls] = useState([])
-  const [expandedGroup, setExpandedGroup] = useState(null)
-  const [transferHistory, setTransferHistory] = useState([])
-  const [traceData, setTraceData] = useState(null)
   const [showTransferModal, setShowTransferModal] = useState(null)
   const [transferForm, setTransferForm] = useState({})
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -98,29 +96,6 @@ export default function Groups() {
   }
 
   useEffect(() => { load() }, [tab])
-
-  // ─── Group detail expand ───────────────────────────────────────────────
-  const toggleGroup = async (gId) => {
-    if (expandedGroup === gId) {
-      setExpandedGroup(null)
-      setTransferHistory([])
-      setTraceData(null)
-      return
-    }
-    setExpandedGroup(gId)
-    setTraceData(null)
-    try {
-      const res = await api('groups.transferHistory', { group_id: gId })
-      setTransferHistory(res.transfers || [])
-    } catch (e) { setTransferHistory([]) }
-  }
-
-  const generateTrace = async (groupId) => {
-    try {
-      const res = await api('traceability.generate', { group_id: groupId, generated_by: user?.id })
-      setTraceData(res.record || res)
-    } catch (e) { alert(e.message) }
-  }
 
   // ─── Group transfer ────────────────────────────────────────────────────
   const submitTransfer = async (e) => {
@@ -310,10 +285,10 @@ export default function Groups() {
       </div>
 
       {/* Tabs */}
-      <div className="tabs" style={{ marginBottom: 16, display: 'flex', gap: 0, borderBottom: '2px solid var(--border)' }}>
-        <button className={`tab ${tab === 'groups' ? 'active' : ''}`} onClick={() => setTab('groups')}>Групи</button>
-        <button className={`tab ${tab === 'dispatch' ? 'active' : ''}`} onClick={() => setTab('dispatch')}>Експедиция</button>
-        <button className={`tab ${tab === 'regulatory' ? 'active' : ''}`} onClick={() => setTab('regulatory')}>Регулаторни</button>
+      <div className="tabs">
+        <div className={`tab ${tab === 'groups' ? 'active' : ''}`} onClick={() => setTab('groups')}>Групи</div>
+        <div className={`tab ${tab === 'dispatch' ? 'active' : ''}`} onClick={() => setTab('dispatch')}>Експедиция</div>
+        <div className={`tab ${tab === 'regulatory' ? 'active' : ''}`} onClick={() => setTab('regulatory')}>Регулаторни</div>
       </div>
 
       {/* ═══ TAB 1: GROUPS ═══ */}
@@ -340,8 +315,8 @@ export default function Groups() {
                   const status = g.exit_date ? 'Изпратена' : isReady ? 'Готова' : 'Активна'
                   const statusColor = g.exit_date ? 'grey' : isReady ? 'blue' : 'green'
                   return (
-                    <tr key={g.id} onClick={() => toggleGroup(g.id)} style={{ cursor: 'pointer', background: expandedGroup === g.id ? '#f8f9fa' : undefined }}>
-                      <td><strong>{g.group_name}</strong></td>
+                    <tr key={g.id}>
+                      <td><Link to={`/groups/${g.id}`} style={{ fontWeight: 600 }}>{g.group_name}</Link></td>
                       <td><span className={`badge ${g.category === 'weaner' ? 'yellow' : 'blue'}`}>{g.category === 'weaner' ? 'Подраст.' : 'Угояване'}</span></td>
                       <td>{g.hall_name || '-'}</td>
                       <td>{fmtDate(g.entry_date)}</td>
@@ -360,68 +335,6 @@ export default function Groups() {
             </table>
           </div>
 
-          {/* Expanded group detail */}
-          {expandedGroup && (() => {
-            const g = groups.find(g => g.id === expandedGroup)
-            if (!g) return null
-            return (
-              <div className="card" style={{ marginTop: 12, borderLeft: '4px solid var(--primary)' }}>
-                <h3>Детайли: {g.group_name}</h3>
-
-                {/* Basic info */}
-                <div className="grid grid-4" style={{ marginBottom: 12 }}>
-                  <div><small>Категория</small><div><strong>{g.category === 'weaner' ? 'Подрастване' : 'Угояване'}</strong></div></div>
-                  <div><small>Хале</small><div>{g.hall_name || '-'}</div></div>
-                  <div><small>Дата на вход</small><div>{fmtDate(g.entry_date)}</div></div>
-                  <div><small>Цел за клане</small><div>{fmtDate(g.target_slaughter_date)}</div></div>
-                  <div><small>Бройка вход</small><div>{g.entry_count}</div></div>
-                  <div><small>Текущ брой</small><div>{g.current_count}</div></div>
-                  <div><small>Тегло вход (ср.)</small><div>{fmtKg(g.entry_weight_avg_kg)}</div></div>
-                  <div><small>Текущо тегло (ср.)</small><div>{fmtKg(g.current_weight_avg_kg)}</div></div>
-                </div>
-
-                {/* Source litters / Genetics */}
-                {g.source_litter_ids && JSON.parse(typeof g.source_litter_ids === 'string' ? g.source_litter_ids : JSON.stringify(g.source_litter_ids)).length > 0 && (
-                  <div style={{ marginBottom: 12 }}>
-                    <h4>Произход (Генетика)</h4>
-                    <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Litter IDs: {JSON.parse(typeof g.source_litter_ids === 'string' ? g.source_litter_ids : JSON.stringify(g.source_litter_ids)).join(', ')}</p>
-                  </div>
-                )}
-
-                {/* Transfer history */}
-                <div style={{ marginBottom: 12 }}>
-                  <h4>История на трансфери</h4>
-                  {transferHistory.length > 0 ? (
-                    <table>
-                      <thead><tr><th>Дата</th><th>От хале</th><th>Към хале</th><th>Тегло (ср.)</th><th>Бройка</th><th>Извършил</th></tr></thead>
-                      <tbody>{transferHistory.map((t, i) => {
-                        const d = typeof t.details === 'string' ? JSON.parse(t.details) : (t.details || {})
-                        return (
-                          <tr key={i}>
-                            <td>{fmtDate(t.event_date)}</td>
-                            <td>{t.from_hall_name || '-'}</td>
-                            <td>{t.to_hall_name || '-'}</td>
-                            <td>{d.weight_avg_kg ? fmtKg(d.weight_avg_kg) : '-'}</td>
-                            <td>{d.head_count || '-'}</td>
-                            <td>{t.performed_by_name || '-'}</td>
-                          </tr>
-                        )
-                      })}</tbody>
-                    </table>
-                  ) : <p style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Няма записи за трансфери</p>}
-                </div>
-
-                {/* Traceability */}
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                    <h4 style={{ margin: 0 }}>Проследимост</h4>
-                    <button className="btn btn-sm primary" onClick={() => generateTrace(g.id)}>Генерирай</button>
-                  </div>
-                  {traceData && <TraceChainView data={typeof traceData.data === 'string' ? JSON.parse(traceData.data) : (traceData.data || traceData)} />}
-                </div>
-              </div>
-            )
-          })()}
         </>
       )}
 
@@ -738,77 +651,6 @@ export default function Groups() {
         </div>
       )}
     </>
-  )
-}
-
-// ═════════════════════════════════════════════════════════════════════════
-// TraceChainView — collapsible traceability chain (from Traceability.jsx)
-// ═════════════════════════════════════════════════════════════════════════
-
-function TraceChainView({ data }) {
-  if (!data) return null
-  const [openSections, setOpenSections] = useState({ batch: true, genetics: true, feed: true, vet: true, withdrawals: true, transport: true })
-  const toggle = (key) => setOpenSections(prev => ({ ...prev, [key]: !prev[key] }))
-
-  const sections = [
-    { key: 'batch', title: 'Партида', icon: '\uD83D\uDCE6', color: '#3498db',
-      render: () => data.batch ? (
-        <div className="grid grid-3">
-          <div><small>Група</small><div><strong>{data.batch.group_name}</strong></div></div>
-          <div><small>Хале</small><div>{data.batch.hall_name}</div></div>
-          <div><small>Вход</small><div>{fmtDate(data.batch.entry_date)}</div></div>
-          <div><small>Бройка вход</small><div>{data.batch.entry_count}</div></div>
-          <div><small>Текущо тегло</small><div>{data.batch.current_weight_avg} кг</div></div>
-          <div><small>Текущ брой</small><div>{data.batch.current_count}</div></div>
-        </div>
-      ) : <p>Няма данни</p>
-    },
-    { key: 'genetics', title: 'Генетика', icon: '\uD83E\uDDEC', color: '#9b59b6',
-      render: () => data.genetics?.length > 0 ? (
-        <table><thead><tr><th>Майка</th><th>Порода</th><th>Паритет</th><th>Родени живи</th></tr></thead>
-        <tbody>{data.genetics.map((g, i) => <tr key={i}><td>{g.ear_tag}</td><td>{g.breed || '-'}</td><td>{g.parity_number}</td><td>{g.born_alive}</td></tr>)}</tbody></table>
-      ) : <p style={{ color: 'var(--text-secondary)' }}>Няма генетични данни</p>
-    },
-    { key: 'feed', title: 'Фураж', icon: '\uD83C\uDF3E', color: '#f39c12',
-      render: () => data.feed?.length > 0 ? (
-        <table><thead><tr><th>Силоз</th><th>Рецепта</th><th>Ниво (т.)</th></tr></thead>
-        <tbody>{data.feed.map((f, i) => <tr key={i}><td>{f.silo_name}</td><td>{f.recipe_name || f.feed_type}</td><td>{f.current_level_tons}</td></tr>)}</tbody></table>
-      ) : <p style={{ color: 'var(--text-secondary)' }}>Няма данни за фуражи</p>
-    },
-    { key: 'vet', title: 'Ветеринарен дневник', icon: '\uD83D\uDC89', color: '#e74c3c',
-      render: () => data.vet?.length > 0 ? (
-        <table><thead><tr><th>Дата</th><th>Тип</th><th>Детайли</th><th>Извършил</th></tr></thead>
-        <tbody>{data.vet.map((v, i) => <tr key={i}><td>{fmtDate(v.event_date)}</td><td>{v.event_type}</td><td>{typeof v.details === 'object' ? JSON.stringify(v.details) : v.details}</td><td>{v.performed_by_name || '-'}</td></tr>)}</tbody></table>
-      ) : <p style={{ color: 'var(--text-secondary)' }}>Няма ветеринарни събития</p>
-    },
-    { key: 'withdrawals', title: 'Карентни срокове', icon: '\u23F1\uFE0F', color: '#e67e22',
-      render: () => data.withdrawals?.length > 0 ? (
-        <table><thead><tr><th>Медикамент</th><th>Начало</th><th>Край</th><th>Статус</th></tr></thead>
-        <tbody>{data.withdrawals.map((w, i) => <tr key={i}><td>{w.medicine_name}</td><td>{fmtDate(w.start_date)}</td><td>{fmtDate(w.end_date)}</td>
-        <td><span className={`badge ${w.status === 'active' ? 'red' : 'green'}`}>{w.status === 'active' ? 'Активен' : 'Изтекъл'}</span></td></tr>)}</tbody></table>
-      ) : <p style={{ color: 'var(--text-secondary)' }}>Няма карентни срокове — <span style={{ color: 'var(--success)' }}>Чиста група</span></p>
-    },
-    { key: 'transport', title: 'Транспорт', icon: '\uD83D\uDE9B', color: '#2ecc71',
-      render: () => data.transport?.length > 0 ? (
-        <table><thead><tr><th>Дата</th><th>МПС</th><th>Купувач</th><th>Глави</th><th>Тегло товар.</th><th>Тегло дест.</th><th>Свиване</th></tr></thead>
-        <tbody>{data.transport.map((t, i) => <tr key={i}><td>{fmtDate(t.dispatch_date)}</td><td>{t.plate_number || '-'}</td><td>{t.buyer_name || '-'}</td>
-        <td>{t.head_count}</td><td>{t.weight_at_loading_kg || '-'} кг</td><td>{t.weight_at_destination_kg || '-'} кг</td>
-        <td>{t.shrinkage_pct != null ? t.shrinkage_pct + '%' : '-'}</td></tr>)}</tbody></table>
-      ) : <p style={{ color: 'var(--text-secondary)' }}>Няма данни за транспорт</p>
-    }
-  ]
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {sections.map(s => (
-        <div key={s.key} className="card" style={{ borderLeft: `4px solid ${s.color}` }}>
-          <h3 style={{ cursor: 'pointer', margin: 0 }} onClick={() => toggle(s.key)}>
-            {s.icon} {s.title} {openSections[s.key] ? '\u25BC' : '\u25B6'}
-          </h3>
-          {openSections[s.key] && <div style={{ marginTop: 8 }}>{s.render()}</div>}
-        </div>
-      ))}
-    </div>
   )
 }
 
