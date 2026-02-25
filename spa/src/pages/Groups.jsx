@@ -271,7 +271,7 @@ export default function Groups() {
   return (
     <>
       <div className="page-header">
-        <h1>Групи / Партиди</h1>
+        <h1>Партиди</h1>
         <div style={{ display: 'flex', gap: 8 }}>
           {tab === 'groups' && <button className="btn primary" onClick={openCreateModal}>+ Нова група</button>}
           {tab === 'dispatch' && (

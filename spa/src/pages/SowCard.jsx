@@ -16,6 +16,19 @@ const EVENT_BG = {
 }
 const STATUS_FLOW = ['awaiting_breeding', 'inseminated', 'pregnant_confirmed', 'in_farrowing', 'lactating', 'weaned_resting']
 
+// Valid next lifecycle events per status
+const NEXT_EVENTS = {
+  awaiting_breeding: ['insemination'],
+  inseminated: ['pregnancy_check_positive', 'pregnancy_check_negative'],
+  pregnant_confirmed: ['transfer_to_farrowing'],
+  in_farrowing: ['farrowing'],
+  lactating: ['weaning'],
+  weaned_resting: ['rest_complete']
+}
+
+// Side events — always available, don't follow the linear lifecycle
+const SIDE_EVENTS = ['vaccination', 'disease', 'treatment', 'culling', 'death', 'transfer']
+
 function fmtDate(d) {
   if (!d) return '-'
   const dt = new Date(d)
@@ -29,13 +42,18 @@ export default function SowCard() {
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('repro')
   const [showEvent, setShowEvent] = useState(false)
-  const [eventForm, setEventForm] = useState({ event_type: 'insemination', details: {} })
+  const [eventForm, setEventForm] = useState({ event_type: 'vaccination', details: {} })
+  const [halls, setHalls] = useState([])
 
   const load = async () => {
     setLoading(true)
     try {
-      const res = await api('animals.card', { id: parseInt(id) })
+      const [res, hRes] = await Promise.all([
+        api('animals.card', { id: parseInt(id) }),
+        api('halls.list').catch(() => ({ halls: [] }))
+      ])
       setData(res)
+      setHalls(hRes.halls || [])
     } catch (e) { console.error(e) }
     setLoading(false)
   }
@@ -51,9 +69,12 @@ export default function SowCard() {
         performed_by: user?.id,
         details: eventForm.details
       }
+      if (eventForm.event_type === 'transfer' && eventForm.details.to_hall_id) {
+        payload.hall_id = parseInt(eventForm.details.to_hall_id)
+      }
       await api('events.record', payload)
       setShowEvent(false)
-      setEventForm({ event_type: 'insemination', details: {} })
+      setEventForm({ event_type: 'vaccination', details: {} })
       load()
     } catch (err) { alert(err.message) }
   }
@@ -62,6 +83,8 @@ export default function SowCard() {
   if (!data) return <div className="loading">Животното не е намерено</div>
 
   const { animal, litters, nursedLitters, healthCard, reproductionSummary, cullingProposal, events } = data
+  const isLifecycleEvent = !SIDE_EVENTS.includes(eventForm.event_type)
+  const nextEvents = NEXT_EVENTS[animal.status] || []
 
   return (
     <>
@@ -70,7 +93,17 @@ export default function SowCard() {
           <Link to="/animals" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>&larr; Към списъка</Link>
           <h1 style={{ marginTop: 4 }}>Картон: {animal.ear_tag || `#${animal.id}`}</h1>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowEvent(true)}>+ Запиши събитие</button>
+        {animal.status !== 'culled' && (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {nextEvents.map(evt => (
+              <button key={evt} className="btn btn-primary"
+                onClick={() => { setShowEvent(true); setEventForm({ event_type: evt, details: {} }) }}>
+                {EVENT_BG[evt]}
+              </button>
+            ))}
+            <button className="btn btn-outline" onClick={() => { setShowEvent(true); setEventForm({ event_type: 'vaccination', details: {} }) }}>+ Запиши събитие</button>
+          </div>
+        )}
       </div>
 
       {/* Status flow */}
@@ -147,7 +180,7 @@ export default function SowCard() {
           <h3>Репродуктивна история</h3>
           {reproductionSummary?.length > 0 ? (
             <table>
-              <thead><tr><th>Прасене</th><th>Дата раждане</th><th>Живородени</th><th>Мъртвородени</th><th>Отбити</th><th>Тегло отбиване</th><th>Дата отбиване</th><th>Кърмачка</th></tr></thead>
+              <thead><tr><th>Прасене</th><th>Дата раждане</th><th>Живородени</th><th>Мъртвородени</th><th>Отбити</th><th>Тегло отбиване</th><th>Дата отбиване</th><th>Партида</th><th>Кърмачка</th></tr></thead>
               <tbody>
                 {reproductionSummary.map((r, i) => (
                   <tr key={i}>
@@ -158,6 +191,7 @@ export default function SowCard() {
                     <td>{r.weanedCount ?? '-'}</td>
                     <td>{r.weaningWeight ? `${r.weaningWeight} кг` : '-'}</td>
                     <td>{fmtDate(r.weaningDate)}</td>
+                    <td>{r.groupId ? <Link to={`/groups/${r.groupId}`}>{r.groupName}</Link> : '-'}</td>
                     <td>{r.nurseEarTag || '-'}</td>
                   </tr>
                 ))}
@@ -239,18 +273,20 @@ export default function SowCard() {
             <form onSubmit={recordEvent}>
               <div className="form-group">
                 <label>Тип събитие</label>
-                <select value={eventForm.event_type} onChange={e => setEventForm({ event_type: e.target.value, details: {} })}>
-                  <option value="insemination">Осеменяване</option>
-                  <option value="pregnancy_check_positive">Ехография (+)</option>
-                  <option value="pregnancy_check_negative">Ехография (-)</option>
-                  <option value="transfer_to_farrowing">Преместване в родилно</option>
-                  <option value="farrowing">Раждане</option>
-                  <option value="weaning">Отбиване</option>
-                  <option value="vaccination">Ваксинация</option>
-                  <option value="disease">Заболяване</option>
-                  <option value="treatment">Третиране</option>
-                  <option value="culling">Бракуване</option>
-                </select>
+                {isLifecycleEvent ? (
+                  <div style={{ padding: '8px 12px', background: 'var(--primary)', color: '#fff', borderRadius: 6, fontWeight: 600 }}>
+                    {EVENT_BG[eventForm.event_type]}
+                  </div>
+                ) : (
+                  <select value={eventForm.event_type} onChange={e => setEventForm({ event_type: e.target.value, details: {} })}>
+                    <option value="vaccination">Ваксинация</option>
+                    <option value="disease">Заболяване</option>
+                    <option value="treatment">Третиране</option>
+                    <option value="culling">Бракуване</option>
+                    <option value="death">Смърт</option>
+                    <option value="transfer">Трансфер</option>
+                  </select>
+                )}
               </div>
 
               {eventForm.event_type === 'insemination' && (
@@ -312,6 +348,26 @@ export default function SowCard() {
                 </div>
               )}
 
+              {eventForm.event_type === 'disease' && (
+                <div className="form-group">
+                  <label>Описание</label>
+                  <textarea rows={2} value={eventForm.details.description || ''} onChange={e => setEventForm(p => ({ ...p, details: { ...p.details, description: e.target.value } }))} />
+                </div>
+              )}
+
+              {eventForm.event_type === 'treatment' && (
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Медикамент</label>
+                    <input value={eventForm.details.medicine_name || ''} onChange={e => setEventForm(p => ({ ...p, details: { ...p.details, medicine_name: e.target.value } }))} />
+                  </div>
+                  <div className="form-group">
+                    <label>Доза (мл)</label>
+                    <input type="number" step="0.1" value={eventForm.details.dose_ml || ''} onChange={e => setEventForm(p => ({ ...p, details: { ...p.details, dose_ml: parseFloat(e.target.value) || 0 } }))} />
+                  </div>
+                </div>
+              )}
+
               {eventForm.event_type === 'culling' && (
                 <div className="form-row">
                   <div className="form-group">
@@ -329,6 +385,16 @@ export default function SowCard() {
                     <label>Тегло (кг)</label>
                     <input type="number" step="0.1" value={eventForm.details.weight_kg || ''} onChange={e => setEventForm(p => ({ ...p, details: { ...p.details, weight_kg: parseFloat(e.target.value) || 0 } }))} />
                   </div>
+                </div>
+              )}
+
+              {eventForm.event_type === 'transfer' && (
+                <div className="form-group">
+                  <label>Към хале</label>
+                  <select value={eventForm.details.to_hall_id || ''} onChange={e => setEventForm(p => ({ ...p, details: { ...p.details, to_hall_id: e.target.value } }))} required>
+                    <option value="">Избери...</option>
+                    {halls.filter(h => h.is_active !== false).map(h => <option key={h.id} value={h.id}>{h.name} ({h.sector_name || ''}) — {h.current_occupancy || 0}/{h.capacity}</option>)}
+                  </select>
                 </div>
               )}
 

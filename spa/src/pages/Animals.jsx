@@ -54,7 +54,7 @@ export default function Animals() {
   return (
     <>
       <div className="page-header">
-        <h1>Животни ({total})</h1>
+        <h1>Разплод ({total})</h1>
         <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ Регистрирай</button>
       </div>
 

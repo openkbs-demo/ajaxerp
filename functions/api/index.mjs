@@ -128,6 +128,7 @@ export async function handler(event) {
     if (action === 'groups.update') return await groupsUpdate(db, body);
     if (action === 'groups.transfer') return await groupsTransfer(db, body);
     if (action === 'groups.transferHistory') return await groupsTransferHistory(db, body);
+    if (action === 'withdrawals.listByGroup') return await withdrawalsListByGroup(db, body);
 
     // ─── LITTERS ──────────────────────────────────────────────────────
     if (action === 'litters.list') return await littersList(db, body);
@@ -645,9 +646,18 @@ async function animalsCard(db, { id, ear_tag }) {
     ['vaccination', 'disease', 'treatment'].includes(e.event_type)
   );
 
+  // Find groups linked to each litter via source_litter_ids
+  const groupsRes = await db.query(`SELECT id, group_name, source_litter_ids FROM animal_groups WHERE source_litter_ids IS NOT NULL`);
+  const litterGroupMap = {};
+  for (const g of groupsRes.rows) {
+    const ids = typeof g.source_litter_ids === 'string' ? JSON.parse(g.source_litter_ids) : (g.source_litter_ids || []);
+    for (const lid of ids) { litterGroupMap[lid] = { id: g.id, group_name: g.group_name }; }
+  }
+
   // Calculate reproduction summary
   const reproSummary = littersRes.rows.map(l => ({
     parity: l.parity_number,
+    litterId: l.id,
     birthDate: l.birth_date,
     bornAlive: l.born_alive,
     stillborn: l.stillborn,
@@ -655,7 +665,9 @@ async function animalsCard(db, { id, ear_tag }) {
     weanedCount: l.weaned_count,
     weaningWeight: l.weaning_weight_kg,
     weaningDate: l.weaning_date,
-    nurseEarTag: l.nurse_ear_tag
+    nurseEarTag: l.nurse_ear_tag,
+    groupId: litterGroupMap[l.id]?.id || null,
+    groupName: litterGroupMap[l.id]?.group_name || null
   }));
 
   // Check culling criteria
@@ -920,6 +932,12 @@ async function eventsRecord(db, { event_type, animal_id, group_id, hall_id, perf
         [details.count, group_id]);
     }
 
+    // Handle group weighing — update current average weight
+    if (event_type === 'weighing' && details?.weight_avg_kg) {
+      await db.query('UPDATE animal_groups SET current_weight_avg_kg = $1 WHERE id = $2',
+        [details.weight_avg_kg, group_id]);
+    }
+
     // Handle group sale
     if (event_type === 'group_sale') {
       const d = details || {};
@@ -1072,6 +1090,16 @@ async function groupsTransferHistory(db, { group_id }) {
     [group_id]
   );
   return ok({ transfers: result.rows });
+}
+
+async function withdrawalsListByGroup(db, { group_id }) {
+  if (!group_id) return err(400, 'group_id е задължителен');
+  const result = await db.query(
+    `SELECT aw.*, mc.name as medicine_name
+     FROM active_withdrawals aw
+     JOIN medicine_catalog mc ON mc.id = aw.medicine_id
+     WHERE aw.group_id = $1 ORDER BY aw.end_date`, [group_id]);
+  return ok({ withdrawals: result.rows });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
