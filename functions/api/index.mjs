@@ -126,8 +126,11 @@ export async function handler(event) {
     if (action === 'groups.create') return await groupsCreate(db, body);
     if (action === 'groups.list') return await groupsList(db, body);
     if (action === 'groups.update') return await groupsUpdate(db, body);
+    if (action === 'groups.transfer') return await groupsTransfer(db, body);
+    if (action === 'groups.transferHistory') return await groupsTransferHistory(db, body);
 
     // ─── LITTERS ──────────────────────────────────────────────────────
+    if (action === 'litters.list') return await littersList(db, body);
     if (action === 'litters.crossFoster') return await littersCrossFoster(db, body);
 
     // ─── FEED ─────────────────────────────────────────────────────────
@@ -774,12 +777,31 @@ async function eventsRecord(db, { event_type, animal_id, group_id, hall_id, perf
 
       if (event_type === 'weaning') {
         const d = details || {};
+        const weanDate = event_date || new Date().toISOString();
         // Update the latest litter for this sow
-        await db.query(
+        const litterUpd = await db.query(
           `UPDATE litters SET weaned_count = $1, weaning_weight_kg = $2, weaning_date = $3
-           WHERE id = (SELECT id FROM litters WHERE birth_sow_id = $4 AND weaning_date IS NULL ORDER BY birth_date DESC LIMIT 1)`,
-          [d.weaned_count || 0, d.weaning_weight_kg || null, event_date || new Date().toISOString(), animal_id]
+           WHERE id = (SELECT id FROM litters WHERE birth_sow_id = $4 AND weaning_date IS NULL ORDER BY birth_date DESC LIMIT 1) RETURNING id`,
+          [d.weaned_count || 0, d.weaning_weight_kg || null, weanDate, animal_id]
         );
+
+        // Auto-create weaner group for this litter
+        if (litterUpd.rows.length > 0 && d.weaned_count > 0) {
+          const litterId = litterUpd.rows[0].id;
+          const hallRes = await db.query('SELECT h.id, h.name FROM halls h WHERE h.id = $1', [animal.current_hall_id]);
+          const hallName = hallRes.rows[0]?.name || 'Н/Д';
+          const wDate = new Date(weanDate);
+          // ISO week number
+          const jan4 = new Date(wDate.getFullYear(), 0, 4);
+          const weekNum = Math.ceil((((wDate - jan4) / 86400000) + jan4.getDay() + 1) / 7);
+          const groupName = `Партида_С${String(weekNum).padStart(2, '0')}_${hallName}`;
+          const entryWeightAvg = d.weaning_weight_kg ? (d.weaning_weight_kg / d.weaned_count) : null;
+          await db.query(
+            `INSERT INTO animal_groups (group_name, category, hall_id, entry_date, entry_count, current_count, entry_weight_avg_kg, current_weight_avg_kg, source_litter_ids)
+             VALUES ($1, 'weaner', $2, $3, $4, $4, $5, $5, $6)`,
+            [groupName, animal.current_hall_id, wDate.toISOString().split('T')[0], d.weaned_count, entryWeightAvg, JSON.stringify([litterId])]
+          );
+        }
 
         // Check weaning weight alert
         const avgWeight = d.weaned_count > 0 ? (d.weaning_weight_kg || 0) / d.weaned_count : 0;
@@ -935,6 +957,16 @@ async function eventsList(db, { animal_id, group_id, event_type, hall_id, limit 
 // LITTERS
 // ═══════════════════════════════════════════════════════════════════════════
 
+async function littersList(db, { limit, weaned_only }) {
+  let q = `SELECT l.id, l.birth_sow_id, l.parity_number, l.born_alive, l.stillborn, l.weaned_count, l.weaning_weight_kg, l.weaning_date, l.birth_date,
+            a.ear_tag as sow_ear_tag, h.name as hall_name
+     FROM litters l JOIN animals a ON a.id = l.birth_sow_id LEFT JOIN halls h ON h.id = a.current_hall_id`;
+  if (weaned_only) q += ` WHERE l.weaning_date IS NOT NULL`;
+  q += ` ORDER BY l.birth_date DESC LIMIT $1`;
+  const result = await db.query(q, [limit || 50]);
+  return ok({ litters: result.rows });
+}
+
 async function littersCrossFoster(db, { litter_id, nurse_sow_id }) {
   if (!litter_id || !nurse_sow_id) return err(400, 'litter_id и nurse_sow_id са задължителни');
 
@@ -997,6 +1029,49 @@ async function groupsUpdate(db, { id, current_count, current_weight_avg_kg, targ
   const result = await db.query(`UPDATE animal_groups SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`, params);
   if (result.rows.length === 0) return err(404, 'Групата не е намерена');
   return ok({ group: result.rows[0] });
+}
+
+async function groupsTransfer(db, { group_id, to_hall_id, transfer_date, weight_avg_kg, head_count, performed_by, notes }) {
+  if (!group_id || !to_hall_id) return err(400, 'group_id и to_hall_id са задължителни');
+  const gRes = await db.query('SELECT * FROM animal_groups WHERE id = $1', [group_id]);
+  if (gRes.rows.length === 0) return err(404, 'Групата не е намерена');
+  const group = gRes.rows[0];
+  const from_hall_id = group.hall_id;
+  const tDate = transfer_date || new Date().toISOString();
+  const details = { from_hall_id, to_hall_id, weight_avg_kg: weight_avg_kg || null, head_count: head_count || group.current_count, notes: notes || null };
+  const evRes = await db.query(
+    `INSERT INTO events (event_type, group_id, hall_id, performed_by, event_date, details) VALUES ('group_transfer', $1, $2, $3, $4, $5) RETURNING id`,
+    [group_id, to_hall_id, performed_by || null, tDate, JSON.stringify(details)]
+  );
+  const updates = ['hall_id = $1'];
+  const params = [to_hall_id];
+  let idx = 2;
+  if (weight_avg_kg) { updates.push(`current_weight_avg_kg = $${idx++}`); params.push(weight_avg_kg); }
+  if (head_count) { updates.push(`current_count = $${idx++}`); params.push(head_count); }
+  params.push(group_id);
+  await db.query(`UPDATE animal_groups SET ${updates.join(', ')} WHERE id = $${idx}`, params);
+  // Update hall occupancy
+  const cnt = head_count || group.current_count;
+  if (from_hall_id) await db.query('UPDATE halls SET current_occupancy = GREATEST(current_occupancy - $1, 0) WHERE id = $2', [cnt, from_hall_id]);
+  await db.query('UPDATE halls SET current_occupancy = current_occupancy + $1 WHERE id = $2', [cnt, to_hall_id]);
+  return ok({ success: true, event_id: evRes.rows[0].id });
+}
+
+async function groupsTransferHistory(db, { group_id }) {
+  if (!group_id) return err(400, 'group_id е задължителен');
+  const result = await db.query(
+    `SELECT e.id, e.event_date, e.details, e.performed_by,
+            h.name as to_hall_name, p.name as performed_by_name,
+            fh.name as from_hall_name
+     FROM events e
+     LEFT JOIN halls h ON h.id = e.hall_id
+     LEFT JOIN personnel p ON p.id = e.performed_by
+     LEFT JOIN halls fh ON fh.id = (e.details->>'from_hall_id')::int
+     WHERE e.group_id = $1 AND e.event_type = 'group_transfer'
+     ORDER BY e.event_date ASC`,
+    [group_id]
+  );
+  return ok({ transfers: result.rows });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2140,14 +2215,14 @@ async function seedData(db) {
 
   // ─── Animal Groups: weaner + finisher batches ──────────────────────
   const groupData = [
-    { name: 'Партида W-2026-01', cat: 'weaner', hall: nurHalls[0]?.id, entry: 180, current: 175, entryW: 7.2, currentW: 18.5, daysAgo: 35, slaughterDays: 0 },
-    { name: 'Партида W-2026-02', cat: 'weaner', hall: nurHalls[1]?.id, entry: 200, current: 196, entryW: 6.8, currentW: 12.3, daysAgo: 18, slaughterDays: 0 },
-    { name: 'Партида W-2026-03', cat: 'weaner', hall: nurHalls[2]?.id, entry: 160, current: 158, entryW: 7.5, currentW: 8.1, daysAgo: 5, slaughterDays: 0 },
-    { name: 'Партида F-2025-08', cat: 'finisher', hall: finHalls[0]?.id, entry: 250, current: 245, entryW: 25, currentW: 85.0, daysAgo: 90, slaughterDays: 30 },
-    { name: 'Партида F-2025-09', cat: 'finisher', hall: finHalls[1]?.id, entry: 230, current: 228, entryW: 24, currentW: 72.5, daysAgo: 70, slaughterDays: 50 },
-    { name: 'Партида F-2025-10', cat: 'finisher', hall: finHalls[2]?.id, entry: 280, current: 276, entryW: 26, currentW: 58.0, daysAgo: 50, slaughterDays: 70 },
-    { name: 'Партида F-2025-11', cat: 'finisher', hall: finHalls[3]?.id, entry: 260, current: 255, entryW: 25, currentW: 42.0, daysAgo: 30, slaughterDays: 90 },
-    { name: 'Партида F-2026-01', cat: 'finisher', hall: finHalls[4]?.id, entry: 220, current: 218, entryW: 23, currentW: 30.5, daysAgo: 14, slaughterDays: 106 }
+    { name: `Партида_С04_${nurHalls[0]?.name || 'ПОДР-1'}`, cat: 'weaner', hall: nurHalls[0]?.id, entry: 180, current: 175, entryW: 7.2, currentW: 18.5, daysAgo: 35, slaughterDays: 0 },
+    { name: `Партида_С06_${nurHalls[1]?.name || 'ПОДР-2'}`, cat: 'weaner', hall: nurHalls[1]?.id, entry: 200, current: 196, entryW: 6.8, currentW: 12.3, daysAgo: 18, slaughterDays: 0 },
+    { name: `Партида_С08_${nurHalls[2]?.name || 'ПОДР-3'}`, cat: 'weaner', hall: nurHalls[2]?.id, entry: 160, current: 158, entryW: 7.5, currentW: 8.1, daysAgo: 5, slaughterDays: 0 },
+    { name: `Партида_С48_${finHalls[0]?.name || 'УГОЯ-1'}`, cat: 'finisher', hall: finHalls[0]?.id, entry: 250, current: 245, entryW: 25, currentW: 85.0, daysAgo: 90, slaughterDays: 30, fromNur: nurHalls[0]?.id, transferDaysAgo: 65 },
+    { name: `Партида_С50_${finHalls[1]?.name || 'УГОЯ-2'}`, cat: 'finisher', hall: finHalls[1]?.id, entry: 230, current: 228, entryW: 24, currentW: 72.5, daysAgo: 70, slaughterDays: 50, fromNur: nurHalls[1]?.id, transferDaysAgo: 45 },
+    { name: `Партида_С02_${finHalls[2]?.name || 'УГОЯ-3'}`, cat: 'finisher', hall: finHalls[2]?.id, entry: 280, current: 276, entryW: 26, currentW: 58.0, daysAgo: 50, slaughterDays: 70, fromNur: nurHalls[2]?.id, transferDaysAgo: 25 },
+    { name: `Партида_С04_${finHalls[3]?.name || 'УГОЯ-4'}`, cat: 'finisher', hall: finHalls[3]?.id, entry: 260, current: 255, entryW: 25, currentW: 42.0, daysAgo: 30, slaughterDays: 90 },
+    { name: `Партида_С06_${finHalls[4]?.name || 'УГОЯ-5'}`, cat: 'finisher', hall: finHalls[4]?.id, entry: 220, current: 218, entryW: 23, currentW: 30.5, daysAgo: 14, slaughterDays: 106 }
   ];
   const groupIds = [];
   for (const g of groupData) {
@@ -2162,6 +2237,17 @@ async function seedData(db) {
     if (res.rows[0]) groupIds.push({ id: res.rows[0].id, ...g });
     // Update hall occupancy
     await db.query('UPDATE halls SET current_occupancy = $1 WHERE id = $2', [g.current, g.hall]);
+  }
+
+  // Seed group_transfer events for finisher groups that moved from nursery
+  for (const g of groupIds) {
+    if (g.cat === 'finisher' && g.fromNur) {
+      const transferDate = new Date(now - (g.transferDaysAgo || 30) * day).toISOString().split('T')[0];
+      await db.query(
+        `INSERT INTO events (event_type, group_id, hall_id, event_date, details) VALUES ('group_transfer', $1, $2, $3, $4)`,
+        [g.id, g.hall, transferDate, JSON.stringify({ from_hall_id: g.fromNur, to_hall_id: g.hall, weight_avg_kg: g.entryW, head_count: g.entry, notes: 'Трансфер от подрастване към угояване' })]
+      );
+    }
   }
 
   // Update hall occupancy for sows

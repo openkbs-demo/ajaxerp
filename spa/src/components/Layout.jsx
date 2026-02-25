@@ -41,12 +41,11 @@ export default function Layout() {
           <NavLink to="/expenses">&#128200; Разходи</NavLink>
           <NavLink to="/reports">&#128203; Отчети</NavLink>
           <NavLink to="/logistics">&#128666; Логистика</NavLink>
-          <NavLink to="/dispatch">&#128230; Експедиция</NavLink>
+          <NavLink to="/groups">&#128230; Групи / Партиди</NavLink>
           <NavLink to="/alerts">&#128276; Аларми</NavLink>
           <NavLink to="/halls">&#127970; Халета</NavLink>
           <NavLink to="/biosecurity">&#128737; Биосигурност</NavLink>
           <NavLink to="/bonuses">&#127942; Бонуси</NavLink>
-          <NavLink to="/traceability">&#128269; Проследимост</NavLink>
           <NavLink to="/settings">&#9881; Настройки</NavLink>
         </nav>
         <div className="sidebar-user">

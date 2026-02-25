@@ -14,10 +14,9 @@ import Sales from './pages/Sales.jsx'
 import Expenses from './pages/Expenses.jsx'
 import Reports from './pages/Reports.jsx'
 import Logistics from './pages/Logistics.jsx'
-import Dispatch from './pages/Dispatch.jsx'
+import Groups from './pages/Groups.jsx'
 import Biosecurity from './pages/Biosecurity.jsx'
 import Bonuses from './pages/Bonuses.jsx'
-import Traceability from './pages/Traceability.jsx'
 import Settings from './pages/Settings.jsx'
 
 function PrivateRoute({ children }) {
@@ -43,10 +42,11 @@ export default function App() {
         <Route path="expenses" element={<Expenses />} />
         <Route path="reports" element={<Reports />} />
         <Route path="logistics" element={<Logistics />} />
-        <Route path="dispatch" element={<Dispatch />} />
+        <Route path="groups" element={<Groups />} />
+        <Route path="dispatch" element={<Navigate to="/groups" replace />} />
+        <Route path="traceability" element={<Navigate to="/groups" replace />} />
         <Route path="biosecurity" element={<Biosecurity />} />
         <Route path="bonuses" element={<Bonuses />} />
-        <Route path="traceability" element={<Traceability />} />
         <Route path="settings" element={<Settings />} />
       </Route>
     </Routes>
