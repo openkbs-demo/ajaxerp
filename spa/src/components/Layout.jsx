@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../AuthContext.jsx'
+import AgentChat from './AgentChat.jsx'
 
 const ROLE_LABELS = {
   admin: 'Администратор',
@@ -15,6 +16,7 @@ export default function Layout() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [chatOpen, setChatOpen] = useState(false)
 
   const handleLogout = () => { logout(); navigate('/login'); }
 
@@ -56,6 +58,10 @@ export default function Layout() {
       <main className="main-content">
         <Outlet />
       </main>
+      <button className={`agent-fab ${chatOpen ? 'open' : ''}`} onClick={() => setChatOpen(!chatOpen)}>
+        {chatOpen ? '\u2715' : '\uD83E\uDD16'}
+      </button>
+      <AgentChat isOpen={chatOpen} onClose={() => setChatOpen(false)} />
     </div>
   )
 }

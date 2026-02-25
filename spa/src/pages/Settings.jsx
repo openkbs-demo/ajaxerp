@@ -12,6 +12,20 @@ const ROLE_LABELS = {
 }
 const ROLES = Object.keys(ROLE_LABELS)
 
+const AI_PROVIDERS = [
+  { value: 'anthropic', label: 'Anthropic (Claude)' }
+]
+
+const AI_MODELS = {
+  anthropic: [
+    { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6 — $3/$15 за MTok (Препоръчан)', default: true },
+    { value: 'claude-opus-4-6', label: 'Claude Opus 4.6 — $5/$25 за MTok (Най-интелигентен)' },
+    { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5 — $1/$5 за MTok (Най-бърз)' },
+    { value: 'claude-sonnet-4-5-20250929', label: 'Claude Sonnet 4.5 — $3/$15 за MTok' },
+    { value: 'claude-opus-4-5-20251101', label: 'Claude Opus 4.5 — $5/$25 за MTok' },
+  ]
+}
+
 export default function Settings() {
   const { user } = useAuth()
   const [loading, setLoading] = useState(null)
@@ -26,6 +40,14 @@ export default function Settings() {
   const [resetPw, setResetPw] = useState(null)
   const [msg, setMsg] = useState(null)
 
+  // AI settings state
+  const [aiProvider, setAiProvider] = useState('anthropic')
+  const [aiModel, setAiModel] = useState('claude-sonnet-4-6')
+  const [aiApiKey, setAiApiKey] = useState('')
+  const [aiMsg, setAiMsg] = useState(null)
+  const [aiLoading, setAiLoading] = useState(false)
+  const [showKey, setShowKey] = useState(false)
+
   const loadPersonnel = useCallback(async () => {
     try {
       const res = await api('personnel.list')
@@ -33,7 +55,18 @@ export default function Settings() {
     } catch {}
   }, [])
 
+  const loadAiSettings = useCallback(async () => {
+    try {
+      const res = await api('settings.getAll')
+      const s = res.settings || {}
+      if (s.ai_provider) setAiProvider(s.ai_provider)
+      if (s.ai_model) setAiModel(s.ai_model)
+      if (s.ai_api_key) setAiApiKey(s.ai_api_key)
+    } catch {}
+  }, [])
+
   useEffect(() => { loadPersonnel() }, [loadPersonnel])
+  useEffect(() => { loadAiSettings() }, [loadAiSettings])
 
   if (user?.role !== 'admin') {
     return <div className="page"><h2>Настройки</h2><p>Само администратори имат достъп до тази страница.</p></div>
@@ -98,6 +131,7 @@ export default function Settings() {
 
       <div className="tabs" style={{ marginBottom: 16 }}>
         <button className={tab === 'users' ? 'tab active' : 'tab'} onClick={() => setTab('users')}>Потребители</button>
+        <button className={tab === 'ai' ? 'tab active' : 'tab'} onClick={() => setTab('ai')}>AI Асистент</button>
         <button className={tab === 'db' ? 'tab active' : 'tab'} onClick={() => setTab('db')}>База данни</button>
       </div>
 
@@ -209,6 +243,73 @@ export default function Settings() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {tab === 'ai' && (
+        <div className="card">
+          <h3>AI Асистент — Конфигурация</h3>
+          <p style={{ color: '#666', fontSize: 13, margin: '8px 0 16px' }}>
+            Настройки за AI агента — доставчик, модел и API ключ. Тези данни се пазят при нулиране на базата.
+          </p>
+
+          {aiMsg && (
+            <div style={{ marginBottom: 12, padding: '8px 12px', borderRadius: 6, background: aiMsg.ok ? '#e8f5e9' : '#ffebee', color: aiMsg.ok ? '#2e7d32' : '#c62828', fontSize: 13 }}>
+              {aiMsg.text}
+            </div>
+          )}
+
+          <div style={{ display: 'grid', gap: 16, maxWidth: 500 }}>
+            <div>
+              <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 13 }}>Доставчик</label>
+              <select value={aiProvider} onChange={e => { setAiProvider(e.target.value); setAiModel(AI_MODELS[e.target.value]?.find(m => m.default)?.value || AI_MODELS[e.target.value]?.[0]?.value || '') }}>
+                {AI_PROVIDERS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 13 }}>Модел</label>
+              <select value={aiModel} onChange={e => setAiModel(e.target.value)}>
+                {(AI_MODELS[aiProvider] || []).map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 13 }}>API Ключ</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  type={showKey ? 'text' : 'password'}
+                  value={aiApiKey}
+                  onChange={e => setAiApiKey(e.target.value)}
+                  placeholder="sk-ant-..."
+                  style={{ flex: 1 }}
+                />
+                <button className="btn btn-outline btn-sm" onClick={() => setShowKey(!showKey)} style={{ whiteSpace: 'nowrap' }}>
+                  {showKey ? 'Скрий' : 'Покажи'}
+                </button>
+              </div>
+              <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
+                Вземете ключ от <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">console.anthropic.com</a>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ marginTop: 20, display: 'flex', gap: 8 }}>
+            <button className="btn btn-primary" disabled={aiLoading} onClick={async () => {
+              setAiLoading(true)
+              setAiMsg(null)
+              try {
+                await api('settings.set', { key: 'ai_provider', value: aiProvider })
+                await api('settings.set', { key: 'ai_model', value: aiModel })
+                await api('settings.set', { key: 'ai_api_key', value: aiApiKey })
+                setAiMsg({ ok: true, text: 'AI настройките са запазени.' })
+              } catch (e) {
+                setAiMsg({ ok: false, text: e.message })
+              } finally { setAiLoading(false) }
+            }}>
+              {aiLoading ? 'Запазване...' : 'Запази'}
+            </button>
           </div>
         </div>
       )}

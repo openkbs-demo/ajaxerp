@@ -4,6 +4,7 @@
  */
 import crypto from 'crypto';
 import { getDB } from './db.mjs';
+import { agentChat, agentHistory } from './agent/index.mjs';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -152,11 +153,17 @@ export async function handler(event) {
     // ─── SEED ─────────────────────────────────────────────────────────
     if (action === 'seed') return await seedData(db);
     if (action === 'reset') {
+      const PROTECTED_TABLES = ['app_settings'];
       const tables = await db.query(`SELECT tablename FROM pg_tables WHERE schemaname = 'public'`);
-      for (const t of tables.rows) await db.query(`DROP TABLE IF EXISTS "${t.tablename}" CASCADE`);
+      let dropped = 0;
+      for (const t of tables.rows) {
+        if (PROTECTED_TABLES.includes(t.tablename)) continue;
+        await db.query(`DROP TABLE IF EXISTS "${t.tablename}" CASCADE`);
+        dropped++;
+      }
       const { resetDB } = await import('./db.mjs');
       resetDB();
-      return ok({ message: `Dropped ${tables.rows.length} tables. Call seed to recreate.` });
+      return ok({ message: `Dropped ${dropped} tables (${PROTECTED_TABLES.join(', ')} preserved). Call seed to recreate.` });
     }
 
     // ─── DASHBOARD BUNDLE ─────────────────────────────────────────────
@@ -316,6 +323,15 @@ export async function handler(event) {
     if (action === 'reports.employeeProfitability') return await reportsEmployeeProfitability(db, body);
     if (action === 'reports.mortalityValue') return await reportsMortalityValue(db, body);
     if (action === 'reports.dailyIO') return await reportsDailyIO(db, body);
+
+    // ─── App Settings ──────────────────────────────────────────────────────
+    if (action === 'settings.get') return ok(await settingsGet(db, body));
+    if (action === 'settings.set') return ok(await settingsSet(db, body));
+    if (action === 'settings.getAll') return ok(await settingsGetAll(db));
+
+    // ─── AI Agent ─────────────────────────────────────────────────────────
+    if (action === 'agent.chat') return ok(await agentChat(db, body));
+    if (action === 'agent.history') return ok(await agentHistory(db, body));
 
     return err(400, `Unknown action: ${action}`);
   } catch (error) {
@@ -5245,4 +5261,35 @@ async function reportsDailyIO(db, { date, from_date, to_date }) {
       }
     }
   });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// APP SETTINGS (key-value, persists across reset)
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function settingsGet(db, { key }) {
+  if (!key) return err(400, 'key е задължителен');
+  const result = await db.query('SELECT value FROM app_settings WHERE key = $1', [key]);
+  return { key, value: result.rows[0]?.value || null };
+}
+
+async function settingsSet(db, { key, value }) {
+  if (!key) return err(400, 'key е задължителен');
+  if (value === null || value === undefined) {
+    await db.query('DELETE FROM app_settings WHERE key = $1', [key]);
+    return { key, deleted: true };
+  }
+  await db.query(
+    `INSERT INTO app_settings (key, value, updated_at) VALUES ($1, $2, NOW())
+     ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
+    [key, String(value)]
+  );
+  return { key, value: String(value) };
+}
+
+async function settingsGetAll(db) {
+  const result = await db.query('SELECT key, value FROM app_settings ORDER BY key');
+  const settings = {};
+  for (const row of result.rows) settings[row.key] = row.value;
+  return { settings };
 }

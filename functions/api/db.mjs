@@ -701,4 +701,28 @@ async function runMigrations(db) {
   await db.query(`CREATE INDEX IF NOT EXISTS idx_traceability_group ON traceability_records(group_id)`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_regulatory_type ON regulatory_documents(document_type)`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_regulatory_status ON regulatory_documents(status)`);
+
+  // ─── Phase 7: AI Agent conversations ──────────────────────────────────
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS agent_conversations (
+      id SERIAL PRIMARY KEY,
+      session_id VARCHAR(64) NOT NULL,
+      personnel_id INTEGER REFERENCES personnel(id),
+      agent_mode VARCHAR(30) NOT NULL DEFAULT 'production',
+      role VARCHAR(20) NOT NULL,
+      content TEXT NOT NULL,
+      tool_calls JSONB,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_agent_conv_session ON agent_conversations(session_id)`);
+
+  // ─── App Settings (persists across reset) ─────────────────────────────
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key VARCHAR(100) PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
 }
