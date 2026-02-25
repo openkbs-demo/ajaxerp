@@ -64,9 +64,17 @@ export async function agentChat(db, { session_id, personnel_id, message, mode })
   const responseText = result.text || 'Не успях да генерирам отговор.';
 
   // Save assistant response
-  const toolCalls = result.steps
-    ?.flatMap(s => s.toolCalls || [])
-    .map(tc => ({ name: tc.toolName, args: tc.args }));
+  // Build enriched tool_calls with results paired by toolCallId
+  const toolCalls = result.steps?.flatMap(step => {
+    const calls = step.toolCalls || [];
+    const results = step.toolResults || [];
+    const resultMap = new Map(results.map(tr => [tr.toolCallId, tr.result]));
+    return calls.map(tc => ({
+      name: tc.toolName,
+      args: tc.args,
+      result: resultMap.get(tc.toolCallId) ?? null
+    }));
+  }) || [];
 
   await db.query(
     `INSERT INTO agent_conversations (session_id, personnel_id, agent_mode, role, content, tool_calls)

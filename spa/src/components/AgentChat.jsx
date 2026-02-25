@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { api } from '../api.js'
 import { useAuth } from '../AuthContext.jsx'
 import './AgentChat.css'
@@ -21,6 +23,43 @@ function newSession() {
   const id = crypto.randomUUID()
   sessionStorage.setItem('agent_session_id', id)
   return id
+}
+
+function ToolCallIcons({ toolCalls }) {
+  const [expandedIdx, setExpandedIdx] = useState(null)
+
+  if (!toolCalls || toolCalls.length === 0) return null
+
+  return (
+    <div className="tool-calls-row">
+      {toolCalls.map((tc, idx) => (
+        <div key={idx} className="tool-call-item">
+          <button
+            className={`tool-call-icon ${expandedIdx === idx ? 'active' : ''}`}
+            onClick={() => setExpandedIdx(expandedIdx === idx ? null : idx)}
+            title={tc.name}
+          >
+            {tc.name.replace(/^get_/, '').charAt(0).toUpperCase()}
+          </button>
+          {expandedIdx === idx && (
+            <div className="tool-call-detail">
+              <div className="tool-call-name">{tc.name}</div>
+              <div className="tool-call-section">
+                <strong>Request</strong>
+                <pre>{JSON.stringify(tc.args, null, 2)}</pre>
+              </div>
+              {tc.result != null && (
+                <div className="tool-call-section">
+                  <strong>Response</strong>
+                  <pre>{JSON.stringify(tc.result, null, 2)}</pre>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  )
 }
 
 export default function AgentChat({ isOpen, onClose }) {
@@ -72,7 +111,7 @@ export default function AgentChat({ isOpen, onClose }) {
         message: text,
         mode
       })
-      setMessages(prev => [...prev, { role: 'assistant', content: data.response }])
+      setMessages(prev => [...prev, { role: 'assistant', content: data.response, tool_calls: data.tool_calls || [] }])
     } catch (e) {
       setMessages(prev => [...prev, { role: 'assistant', content: `Грешка: ${e.message}` }])
     } finally {
@@ -122,7 +161,16 @@ export default function AgentChat({ isOpen, onClose }) {
           </div>
         )}
         {messages.map((msg, i) => (
-          <div key={i} className={`agent-msg ${msg.role}`}>{msg.content}</div>
+          <div key={i} className={`agent-msg ${msg.role}`}>
+            {msg.role === 'assistant' && msg.tool_calls?.length > 0 && (
+              <ToolCallIcons toolCalls={msg.tool_calls} />
+            )}
+            {msg.role === 'assistant' ? (
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+            ) : (
+              msg.content
+            )}
+          </div>
         ))}
         {loading && <div className="agent-msg thinking">Мисля...</div>}
         <div ref={messagesEnd} />
