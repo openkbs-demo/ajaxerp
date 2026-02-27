@@ -85,12 +85,29 @@ export default function Dashboard() {
         {/* Alerts */}
         <div className="card">
           <h3>Последни аларми <Link to="/alerts" style={{fontSize:12,float:'right'}}>Виж всички</Link></h3>
-          {data.recentAlerts?.length > 0 ? data.recentAlerts.map(a => (
-            <div key={a.id} className={`alert-item ${a.severity}`}>
-              <div className="alert-msg">{a.message}</div>
-              <div className="alert-time">{fmtDate(a.created_at)}</div>
-            </div>
-          )) : <p style={{color:'var(--text-secondary)'}}>Няма активни аларми.</p>}
+          {data.recentAlerts?.length > 0 ? data.recentAlerts.map(a => {
+            const link = a.related_entity_type === 'animal' ? `/animals/${a.related_entity_id}`
+              : a.related_entity_type === 'animal_group' ? `/groups/${a.related_entity_id}`
+              : a.related_entity_type === 'hall' ? `/halls/${a.related_entity_id}`
+              : null
+            const name = a.entity_name
+            let msg = a.message
+            if (link && name && msg.includes(name)) {
+              const idx = msg.indexOf(name)
+              return (
+                <div key={a.id} className={`alert-item ${a.severity}`}>
+                  <div className="alert-msg">{msg.slice(0, idx)}<Link to={link} style={{ fontWeight: 700 }}>{name}</Link>{msg.slice(idx + name.length)}</div>
+                  <div className="alert-time">{fmtDate(a.created_at)}</div>
+                </div>
+              )
+            }
+            return (
+              <div key={a.id} className={`alert-item ${a.severity}`}>
+                <div className="alert-msg">{msg}</div>
+                <div className="alert-time">{fmtDate(a.created_at)}</div>
+              </div>
+            )
+          }) : <p style={{color:'var(--text-secondary)'}}>Няма активни аларми.</p>}
         </div>
       </div>
 

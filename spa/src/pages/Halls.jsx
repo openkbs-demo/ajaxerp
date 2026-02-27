@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '../api.js'
 
 export default function Halls() {
@@ -70,7 +71,7 @@ export default function Halls() {
                 const pct = h.capacity > 0 ? Math.round((h.current_occupancy || 0) / h.capacity * 100) : 0
                 return (
                   <tr key={h.id}>
-                    <td><strong>{h.name}</strong></td>
+                    <td><Link to={`/halls/${h.id}`}><strong>{h.name}</strong></Link></td>
                     <td>{h.sector_name}</td>
                     <td><span className={`badge ${h.biosecurity_zone === 'black' ? 'grey' : h.biosecurity_zone === 'grey' ? 'yellow' : 'green'}`}>{h.biosecurity_zone === 'black' ? 'Черна' : h.biosecurity_zone === 'grey' ? 'Сива' : 'Бяла'}</span></td>
                     <td>{h.capacity}</td>

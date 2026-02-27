@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '../api.js'
 import { useAuth } from '../AuthContext.jsx'
 
@@ -68,7 +69,20 @@ export default function Alerts() {
             {filter === 'unacked' ? 'Няма непотвърдени аларми.' : 'Няма аларми.'}
           </p>
         ) : (
-          alerts.map(a => (
+          alerts.map(a => {
+            const link = a.related_entity_type === 'animal' ? `/animals/${a.related_entity_id}`
+              : a.related_entity_type === 'animal_group' ? `/groups/${a.related_entity_id}`
+              : a.related_entity_type === 'hall' ? `/halls/${a.related_entity_id}`
+              : null
+            const name = a.entity_name
+            const renderMsg = () => {
+              if (link && name && a.message.includes(name)) {
+                const idx = a.message.indexOf(name)
+                return <>{a.message.slice(0, idx)}<Link to={link} style={{ fontWeight: 700 }}>{name}</Link>{a.message.slice(idx + name.length)}</>
+              }
+              return a.message
+            }
+            return (
             <div key={a.id} className={`alert-item ${a.severity}`}>
               <div className="alert-msg">
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4 }}>
@@ -77,7 +91,7 @@ export default function Alerts() {
                   </span>
                   <span className="badge grey">{a.category}</span>
                 </div>
-                <div>{a.message}</div>
+                <div>{renderMsg()}</div>
                 {a.is_acknowledged && (
                   <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>
                     Потвърдена от: {a.acknowledged_by_name || `#${a.acknowledged_by}`} на {fmtDate(a.acknowledged_at)}
@@ -94,7 +108,7 @@ export default function Alerts() {
                 )}
               </div>
             </div>
-          ))
+          )})
         )}
       </div>
 

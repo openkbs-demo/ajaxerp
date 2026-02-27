@@ -16,6 +16,7 @@ import Reports from './pages/Reports.jsx'
 import Logistics from './pages/Logistics.jsx'
 import Groups from './pages/Groups.jsx'
 import GroupCard from './pages/GroupCard.jsx'
+import HallCard from './pages/HallCard.jsx'
 import Biosecurity from './pages/Biosecurity.jsx'
 import Bonuses from './pages/Bonuses.jsx'
 import Settings from './pages/Settings.jsx'
@@ -38,6 +39,7 @@ export default function App() {
         <Route path="feed" element={<Feed />} />
         <Route path="alerts" element={<Alerts />} />
         <Route path="halls" element={<Halls />} />
+        <Route path="halls/:id" element={<HallCard />} />
         <Route path="finance" element={<Finance />} />
         <Route path="sales" element={<Sales />} />
         <Route path="expenses" element={<Expenses />} />

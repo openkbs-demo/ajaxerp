@@ -1564,7 +1564,14 @@ async function createAlert(db, severity, category, message, entityType, entityId
 }
 
 async function alertsList(db, { severity, category, acknowledged, limit }) {
-  let q = 'SELECT a.*, p.name as acknowledged_by_name FROM alerts a LEFT JOIN personnel p ON p.id = a.acknowledged_by WHERE 1=1';
+  let q = `SELECT a.*, p.name as acknowledged_by_name,
+    COALESCE(an.ear_tag, h.name, ag.group_name) as entity_name
+    FROM alerts a
+    LEFT JOIN personnel p ON p.id = a.acknowledged_by
+    LEFT JOIN animals an ON a.related_entity_type = 'animal' AND an.id = a.related_entity_id
+    LEFT JOIN halls h ON a.related_entity_type = 'hall' AND h.id = a.related_entity_id
+    LEFT JOIN animal_groups ag ON a.related_entity_type = 'animal_group' AND ag.id = a.related_entity_id
+    WHERE 1=1`;
   const params = [];
   let idx = 1;
   if (severity) { q += ` AND a.severity = $${idx++}`; params.push(severity); }
@@ -1663,8 +1670,13 @@ async function dashboardBundle(db) {
 
   // Recent alerts (top 10)
   const recentAlerts = await db.query(`
-    SELECT * FROM alerts WHERE is_acknowledged = false
-    ORDER BY CASE severity WHEN 'critical' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END, created_at DESC
+    SELECT a.*, COALESCE(an.ear_tag, h.name, ag.group_name) as entity_name
+    FROM alerts a
+    LEFT JOIN animals an ON a.related_entity_type = 'animal' AND an.id = a.related_entity_id
+    LEFT JOIN halls h ON a.related_entity_type = 'hall' AND h.id = a.related_entity_id
+    LEFT JOIN animal_groups ag ON a.related_entity_type = 'animal_group' AND ag.id = a.related_entity_id
+    WHERE a.is_acknowledged = false
+    ORDER BY CASE a.severity WHEN 'critical' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END, a.created_at DESC
     LIMIT 10
   `);
 
