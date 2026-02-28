@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pig-Tech ERP | Система за управление на свинеферма</title>
-    <meta name="description" content="Pig-Tech ERP — интелигентна система за управление на свинеферма с DanBred генетика. Пълен производствен цикъл, биосигурност, финанси, логистика и AI анализи.">
+    <title>Pig-Tech ERP | Софтуер за управление на свинеферми</title>
+    <meta name="description" content="Pig-Tech ERP — професионален софтуер за управление на свинеферми. Поддръжка на DanBred генетика, пълен производствен цикъл, биосигурност, финанси, логистика и AI анализи. Заявете демо.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -198,16 +198,26 @@
             transition: all 0.3s ease;
         }
         .hero-stat:hover { background: rgba(255,255,255,0.14); transform: translateY(-4px); }
+        .hero-stat-icon {
+            width: 40px; height: 40px;
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            margin-bottom: 0.75rem;
+        }
+        .hero-stat-icon svg { width: 22px; height: 22px; fill: white; }
+        .hsi-green { background: rgba(76,175,80,0.25); }
+        .hsi-blue { background: rgba(33,150,243,0.25); }
+        .hsi-orange { background: rgba(255,152,0,0.25); }
+        .hsi-purple { background: rgba(156,39,176,0.25); }
         .hero-stat-value {
-            font-size: 2.4rem; font-weight: 800;
-            color: var(--green-300);
-            letter-spacing: -0.02em;
-            line-height: 1;
-            margin-bottom: 0.4rem;
+            font-size: 1.1rem; font-weight: 700;
+            color: white;
+            line-height: 1.3;
+            margin-bottom: 0.3rem;
         }
         .hero-stat-label {
-            font-size: 0.85rem; color: rgba(255,255,255,0.6);
-            font-weight: 500;
+            font-size: 0.82rem; color: rgba(255,255,255,0.55);
+            font-weight: 400; line-height: 1.4;
         }
 
         /* ── TRUST BAR ── */
@@ -250,7 +260,7 @@
         }
         .section-desc {
             font-size: 1.1rem; color: var(--text-light);
-            max-width: 600px; margin: 0 auto;
+            max-width: 640px; margin: 0 auto;
             line-height: 1.7;
         }
 
@@ -333,6 +343,38 @@
             flex-shrink: 0; margin-top: 1px;
         }
 
+        /* ── BENEFITS (why us) ── */
+        .benefits { background: var(--off-white); }
+        .benefits-grid {
+            max-width: 1100px; margin: 0 auto;
+            display: grid; grid-template-columns: repeat(3, 1fr);
+            gap: 2rem;
+        }
+        .benefit-card {
+            text-align: center;
+            padding: 2.5rem 1.5rem;
+            background: white;
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            transition: all 0.3s ease;
+        }
+        .benefit-card:hover { transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.06); }
+        .benefit-num {
+            width: 56px; height: 56px;
+            border-radius: 16px;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 1.25rem;
+            font-size: 1.4rem; font-weight: 800;
+            color: white;
+        }
+        .benefit-card h3 {
+            font-size: 1.15rem; font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        .benefit-card p {
+            font-size: 0.9rem; color: var(--text-light); line-height: 1.6;
+        }
+
         /* ── KPI BAR ── */
         .kpi-section {
             background: linear-gradient(135deg, var(--green-900) 0%, var(--green-800) 50%, var(--green-700) 100%);
@@ -345,9 +387,9 @@
             color: white; letter-spacing: -0.02em;
             margin-bottom: 0.75rem;
         }
-        .kpi-header p { color: var(--green-300); font-size: 1.05rem; }
+        .kpi-header p { color: var(--green-300); font-size: 1.05rem; max-width: 600px; margin: 0 auto; line-height: 1.6; }
         .kpi-grid {
-            display: grid; grid-template-columns: repeat(5, 1fr); gap: 1.25rem;
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.25rem;
         }
         .kpi-card {
             background: rgba(255,255,255,0.07);
@@ -359,15 +401,22 @@
             transition: all 0.3s ease;
         }
         .kpi-card:hover { background: rgba(255,255,255,0.12); transform: translateY(-4px); }
+        .kpi-icon {
+            width: 48px; height: 48px;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.1);
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 1rem;
+        }
+        .kpi-icon svg { width: 24px; height: 24px; fill: var(--green-300); }
         .kpi-value {
-            font-size: 2.2rem; font-weight: 800;
-            color: var(--green-300);
-            letter-spacing: -0.02em;
+            font-size: 1.1rem; font-weight: 700;
+            color: white;
             margin-bottom: 0.25rem;
         }
         .kpi-label {
             font-size: 0.82rem; color: rgba(255,255,255,0.55);
-            font-weight: 500; line-height: 1.4;
+            font-weight: 400; line-height: 1.4;
         }
 
         /* ── CTA ── */
@@ -430,7 +479,8 @@
         /* ── MOBILE ── */
         @media (max-width: 1024px) {
             .features-grid { grid-template-columns: repeat(2, 1fr); }
-            .kpi-grid { grid-template-columns: repeat(3, 1fr); }
+            .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+            .benefits-grid { grid-template-columns: repeat(3, 1fr); }
         }
 
         @media (max-width: 768px) {
@@ -477,7 +527,6 @@
             .hero-desc { font-size: 1.05rem; }
             .hero-stats { grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
             .hero-stat { padding: 1.1rem; }
-            .hero-stat-value { font-size: 1.8rem; }
 
             .section-title { font-size: 2rem; }
             .features-grid { grid-template-columns: 1fr; }
@@ -486,8 +535,9 @@
             .showcase-row.reverse .showcase-text { order: 0; }
             .showcase-text h3 { font-size: 1.6rem; }
 
+            .benefits-grid { grid-template-columns: 1fr; }
+
             .kpi-grid { grid-template-columns: repeat(2, 1fr); }
-            .kpi-value { font-size: 1.8rem; }
 
             .cta-content h2 { font-size: 2rem; }
 
@@ -527,12 +577,12 @@
     </a>
 
     <div class="nav-links">
-        <a href="#features">Модули</a>
-        <a href="#production">Производство</a>
-        <a href="#kpis">KPI</a>
+        <a href="#features">Възможности</a>
+        <a href="#why">Защо Pig-Tech</a>
+        <a href="#production">Как работи</a>
         <a href="/app/login" class="nav-cta">
             <svg viewBox="0 0 24 24"><path d="M11 7L9.6 8.4l2.6 2.6H2v2h10.2l-2.6 2.6L11 17l5-5-5-5zm9 12h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-8v2h8v14z"/></svg>
-            Вход в системата
+            Вход
         </a>
     </div>
 
@@ -547,12 +597,12 @@
         <button class="mobile-menu-close" onclick="document.getElementById('mobileMenu').classList.remove('open')">
             <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
-        <a href="#features" onclick="document.getElementById('mobileMenu').classList.remove('open')">Модули</a>
-        <a href="#production" onclick="document.getElementById('mobileMenu').classList.remove('open')">Производство</a>
-        <a href="#kpis" onclick="document.getElementById('mobileMenu').classList.remove('open')">KPI</a>
+        <a href="#features" onclick="document.getElementById('mobileMenu').classList.remove('open')">Възможности</a>
+        <a href="#why" onclick="document.getElementById('mobileMenu').classList.remove('open')">Защо Pig-Tech</a>
+        <a href="#production" onclick="document.getElementById('mobileMenu').classList.remove('open')">Как работи</a>
         <a href="/app/login" class="nav-cta" style="margin-top:1rem">
             <svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:currentColor"><path d="M11 7L9.6 8.4l2.6 2.6H2v2h10.2l-2.6 2.6L11 17l5-5-5-5zm9 12h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-8v2h8v14z"/></svg>
-            Вход в системата
+            Вход
         </a>
     </div>
 </div>
@@ -567,40 +617,52 @@
         <div class="hero-text">
             <div class="hero-badge fade-up">
                 <span class="dot"></span>
-                DanBred генетика &bull; Пълен производствен цикъл
+                Софтуер за свинеферми &bull; Облачна платформа
             </div>
             <h1 class="fade-up delay-1">
-                Интелигентно<br>
-                управление на<br>
+                Дигитализирайте<br>
+                вашата<br>
                 <span class="accent">свинеферма</span>
             </h1>
             <p class="hero-desc fade-up delay-2">
-                Цялостна ERP система за модерни свинекомплекси &mdash; от осеменяване до експедиция. Реално време, пълна проследимост, максимална ефективност.
+                Професионален ERP софтуер за свинекомплекси от всякакъв мащаб. Управлявайте производство, генетика, фуражи, биосигурност и финанси &mdash; от едно място.
             </p>
             <div class="hero-actions fade-up delay-3">
                 <a href="/app/login" class="btn-primary">
                     <svg viewBox="0 0 24 24"><path d="M11 7L9.6 8.4l2.6 2.6H2v2h10.2l-2.6 2.6L11 17l5-5-5-5zm9 12h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-8v2h8v14z"/></svg>
-                    Влез в системата
+                    Заявете демо
                 </a>
-                <a href="#features" class="btn-outline">Разгледай модулите</a>
+                <a href="#features" class="btn-outline">Разгледайте възможностите</a>
             </div>
         </div>
         <div class="hero-stats">
             <div class="hero-stat fade-up delay-1">
-                <div class="hero-stat-value">6 500</div>
-                <div class="hero-stat-label">Свине-майки</div>
+                <div class="hero-stat-icon hsi-green">
+                    <svg viewBox="0 0 24 24"><path d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z"/></svg>
+                </div>
+                <div class="hero-stat-value">22+ модула</div>
+                <div class="hero-stat-label">Покриващи целия производствен цикъл</div>
             </div>
             <div class="hero-stat fade-up delay-2">
-                <div class="hero-stat-value">25</div>
-                <div class="hero-stat-label">Производствени халета</div>
+                <div class="hero-stat-icon hsi-blue">
+                    <svg viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg>
+                </div>
+                <div class="hero-stat-value">100% облачен</div>
+                <div class="hero-stat-label">Достъп от всяко устройство, навсякъде</div>
             </div>
             <div class="hero-stat fade-up delay-3">
-                <div class="hero-stat-value">5</div>
-                <div class="hero-stat-label">Сектора</div>
+                <div class="hero-stat-icon hsi-orange">
+                    <svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
+                </div>
+                <div class="hero-stat-value">AI асистент</div>
+                <div class="hero-stat-label">Вграден изкуствен интелект за анализи</div>
             </div>
             <div class="hero-stat fade-up delay-4">
-                <div class="hero-stat-value">39</div>
-                <div class="hero-stat-label">Живи KPI показателя</div>
+                <div class="hero-stat-icon hsi-purple">
+                    <svg viewBox="0 0 24 24"><path d="M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z"/></svg>
+                </div>
+                <div class="hero-stat-value">Мобилна версия</div>
+                <div class="hero-stat-label">Оптимизиран за работа от телефон и таблет</div>
             </div>
         </div>
     </div>
@@ -610,24 +672,24 @@
 <div class="trust-bar">
     <div class="trust-bar-inner">
         <div class="trust-item">
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+            DanBred генетика
+        </div>
+        <div class="trust-item">
             <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
-            Биосигурност
+            Биосигурност по EU стандарти
         </div>
         <div class="trust-item">
             <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
             KPI в реално време
         </div>
         <div class="trust-item">
-            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-            DanBred генетика
+            <svg viewBox="0 0 24 24"><path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"/></svg>
+            Пълна проследимост
         </div>
         <div class="trust-item">
             <svg viewBox="0 0 24 24"><path d="M21 18v1c0 1.1-.9 2-2 2H5c-1.11 0-2-.9-2-2V5c0-1.1.89-2 2-2h14c1.1 0 2 .9 2 2v1h-9c-1.11 0-2 .9-2 2v8c0 1.1.89 2 2 2h9zm-9-2h10V8H12v8zm4-2.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>
             Финансов контрол
-        </div>
-        <div class="trust-item">
-            <svg viewBox="0 0 24 24"><path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"/></svg>
-            Пълна проследимост
         </div>
     </div>
 </div>
@@ -639,8 +701,8 @@
             <svg viewBox="0 0 24 24"><path d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z"/></svg>
             Модули
         </div>
-        <h2 class="section-title fade-up delay-1">Всичко за фермата.<br>На едно място.</h2>
-        <p class="section-desc fade-up delay-2">22 специализирани модула покриват целия производствен цикъл &mdash; от генетика до финансов отчет.</p>
+        <h2 class="section-title fade-up delay-1">Всичко, от което<br>вашата ферма се нуждае</h2>
+        <p class="section-desc fade-up delay-2">22 специализирани модула покриват целия производствен цикъл &mdash; от генетичния подбор до финансовия отчет. Конфигурирайте системата спрямо вашите нужди.</p>
     </div>
 
     <div class="features-grid">
@@ -653,7 +715,7 @@
                     <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
                 </div>
                 <h3>Разплод & Генетика</h3>
-                <p>DanBred генетична програма. Цялостен жизнен цикъл на свинете-майки &mdash; осеменяване, бременност, опрасване, кърмене, отбиване.</p>
+                <p>Пълен жизнен цикъл на свинете-майки &mdash; от осеменяване до отбиване. Поддръжка на DanBred и други генетични програми. Кръстосано отглеждане, бракуване по KPI.</p>
             </div>
         </div>
 
@@ -666,7 +728,7 @@
                     <svg viewBox="0 0 24 24"><path d="M18.06 22.99h1.66c.84 0 1.53-.64 1.63-1.46L23 5.05h-5V1h-1.97v4.05h-4.97l.3 2.34c1.71.47 3.31 1.32 4.27 2.26 1.44 1.42 2.43 2.89 2.43 5.29v8.05zM1 21.99V21h15.03v.99c0 .55-.45 1-1.01 1H2.01c-.56 0-1.01-.45-1.01-1zm15.03-7c0-4.58-6.53-5-9.52-5-2.99 0-9.52.42-9.52 5v1h19.03v-1z"/></svg>
                 </div>
                 <h3>Фуражи & Хранене</h3>
-                <p>Рецепти, суровини, производство на партиди. Автоматично отчитане на разход, калкулация цена/тон и следене на силозите.</p>
+                <p>Рецепти, суровини, производство на партиди. Автоматична калкулация цена/тон, управление на силози и аларми за ниски нива на запас.</p>
             </div>
         </div>
 
@@ -679,7 +741,7 @@
                     <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
                 </div>
                 <h3>Биосигурност</h3>
-                <p>Контрол на достъпа с 48-часово правило. Хигиенни паузи, карантина, дезинфекция, ветеринарни карентни срокове.</p>
+                <p>Контрол на достъпа по зони, 48-часово правило, хигиенни паузи, карантина, дезинфекция. Карентни срокове за медикаменти.</p>
             </div>
         </div>
 
@@ -691,8 +753,8 @@
                 <div class="feature-icon fi-blue">
                     <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-1.99.9-1.99 2L3 19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-1 11h-4v4h-4v-4H6v-4h4V6h4v4h4v4z"/></svg>
                 </div>
-                <h3>Здраве & Ветеринария</h3>
-                <p>Медикаменти, карентни срокове, ветеринарен дневник. Алармена система с автоматични нотификации при критични отклонения.</p>
+                <h3>Здраве & Аларми</h3>
+                <p>Автоматична алармена система с нива на критичност. KPI мониторинг, ветеринарен дневник, нотификации при отклонения от целите.</p>
             </div>
         </div>
 
@@ -705,7 +767,7 @@
                     <svg viewBox="0 0 24 24"><path d="M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM6 18.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm13.5-9l1.96 2.5H17V9.5h2.5zm-1.5 9c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>
                 </div>
                 <h3>Логистика & Експедиция</h3>
-                <p>Управление на превозни средства, маршрути за доставка на фуражи, експедиция за кланица. Дезинфекция и статус на камиони.</p>
+                <p>Управление на автопарк, маршрути за доставка на фуражи, поръчки за кланица. Проследяване на свиване и дезинфекция на превозни средства.</p>
             </div>
         </div>
 
@@ -718,42 +780,42 @@
                     <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
                 </div>
                 <h3>Финанси & Отчети</h3>
-                <p>P&L по сектори и партиди. Приходи, разходи, заплати, бонуси. 9 типа справки с Excel експорт и финансови KPI.</p>
+                <p>P&L по сектори и партиди. Заплати, бонуси по KPI, 9 типа аналитични справки. Експорт в Excel за интеграция с вашия счетоводен софтуер.</p>
             </div>
         </div>
     </div>
 </section>
 
-<!-- SHOWCASE: PRODUCTION -->
+<!-- SHOWCASE: HOW IT WORKS -->
 <section class="showcase" id="production">
     <div class="section-header">
         <div class="section-tag fade-up">
             <svg viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg>
-            Производство
+            Как работи
         </div>
-        <h2 class="section-title fade-up delay-1">Пълен производствен цикъл</h2>
-        <p class="section-desc fade-up delay-2">5 сектора, 25 халета, безкомпромисен контрол на всяка стъпка.</p>
+        <h2 class="section-title fade-up delay-1">Пълен контрол над<br>производствения цикъл</h2>
+        <p class="section-desc fade-up delay-2">Pig-Tech ERP следи всяко животно от раждане до експедиция. Конфигурирайте сектори, халета и KPI цели спрямо мащаба на вашата ферма.</p>
     </div>
 
     <div class="showcase-row fade-up">
         <div class="showcase-img-wrap">
-            <img src="/images/breeding.png" alt="DanBred свине-майки">
+            <img src="/images/breeding.png" alt="Управление на разплод">
         </div>
         <div class="showcase-text">
-            <h3>DanBred генетична програма</h3>
-            <p>Управление на цялостния репродуктивен цикъл на свинете-майки с DanBred генетика &mdash; доказано най-високата продуктивност в Европа.</p>
+            <h3>Управление на разплода</h3>
+            <p>Системата следи всяка свиня-майка през пълния репродуктивен цикъл. Настройте генетичната програма &mdash; DanBred, PIC, Topigs или друга &mdash; и оставете софтуера да оптимизира резултатите.</p>
             <ul class="showcase-list">
                 <li>
                     <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
-                    7-степенна машина на статуса: от осеменяване до отбиване
+                    7-степенна машина на статуса на всяко животно
                 </li>
                 <li>
                     <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
-                    Кръстосано отглеждане (cross-fostering) за оптимален кърмителен капацитет
+                    Кръстосано отглеждане (cross-fostering) и частичен трансфер
                 </li>
                 <li>
                     <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
-                    Цел: 18.5 живородени, 36&ndash;38 отбити/свиня-майка/година
+                    Конфигуруеми KPI цели по вашите стандарти
                 </li>
                 <li>
                     <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
@@ -765,60 +827,98 @@
 
     <div class="showcase-row reverse fade-up">
         <div class="showcase-img-wrap">
-            <img src="/images/farm-aerial.png" alt="Ферма от въздуха">
+            <img src="/images/farm-aerial.png" alt="Управление на ферма">
         </div>
         <div class="showcase-text">
-            <h3>25 халета в 5 сектора</h3>
-            <p>Изцяло дигитализирано управление на производствените мощности &mdash; от осеменителна зала до угоителна сграда.</p>
+            <h3>Мащабируема архитектура</h3>
+            <p>Без значение дали управлявате 500 или 10 000 свине-майки &mdash; Pig-Tech ERP се адаптира. Дефинирайте собствени сектори, халета и биосигурностни зони.</p>
             <ul class="showcase-list">
                 <li>
                     <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
-                    Осеменяване &bull; Бременност &bull; Опрасване &bull; Подрастване &bull; Угояване
+                    5 стандартни сектора: осеменяване, бременност, опрасване, подрастване, угояване
                 </li>
                 <li>
                     <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
-                    Капацитет и заетост на всяко хале в реално време
+                    Неограничен брой халета с капацитет и заетост в реално време
                 </li>
                 <li>
                     <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
-                    Температурни цели по зона, хигиенен статус
+                    Ролеви достъп: админ, мениджър, ветеринар, техник, работник
                 </li>
                 <li>
                     <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
-                    Биосигурностни зони с автоматичен 48-часов контрол
+                    Многоезичен интерфейс, готов за всеки пазар
                 </li>
             </ul>
         </div>
     </div>
 </section>
 
-<!-- KPI SECTION -->
+<!-- WHY PIG-TECH -->
+<section class="benefits" id="why">
+    <div class="section-header">
+        <div class="section-tag fade-up">
+            <svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+            Предимства
+        </div>
+        <h2 class="section-title fade-up delay-1">Защо да изберете<br>Pig-Tech ERP?</h2>
+        <p class="section-desc fade-up delay-2">Проектиран от специалисти в свиневъдството, разработен с най-модерни технологии.</p>
+    </div>
+
+    <div class="benefits-grid">
+        <div class="benefit-card fade-up delay-1">
+            <div class="benefit-num fi-green">1</div>
+            <h3>Бърз старт</h3>
+            <p>Разгръщане за дни, не месеци. Облачна платформа без нужда от сървъри. Готови шаблони за рецепти, KPI цели и организационна структура.</p>
+        </div>
+        <div class="benefit-card fade-up delay-2">
+            <div class="benefit-num fi-blue">2</div>
+            <h3>Пълна картина</h3>
+            <p>Всичко на едно място &mdash; разплод, фуражи, финанси, логистика, биосигурност. Без нужда от десетки различни софтуера и таблици.</p>
+        </div>
+        <div class="benefit-card fade-up delay-3">
+            <div class="benefit-num fi-orange">3</div>
+            <h3>AI-базирани решения</h3>
+            <p>Вграден AI асистент анализира данните ви и предлага действия. Автоматични аларми при отклонения, прогнози за производство, оптимизация на разходи.</p>
+        </div>
+    </div>
+</section>
+
+<!-- KPI SECTION (reframed as platform capabilities) -->
 <section class="kpi-section" id="kpis">
     <div class="kpi-inner">
         <div class="kpi-header fade-up">
-            <h2>Производствени KPI цели</h2>
-            <p>Реално време мониторинг на ключовите показатели за ефективност</p>
+            <h2>Вградени инструменти за всеки екип</h2>
+            <p>Pig-Tech ERP дава правилната информация на правилния човек &mdash; от управителя до работника на терен.</p>
         </div>
         <div class="kpi-grid">
             <div class="kpi-card fade-up delay-1">
-                <div class="kpi-value">2.4</div>
-                <div class="kpi-label">Опрасвания /<br>свиня-майка / год.</div>
+                <div class="kpi-icon">
+                    <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
+                </div>
+                <div class="kpi-value">Табло с KPI</div>
+                <div class="kpi-label">Живи показатели за ефективност с цветна индикация</div>
             </div>
             <div class="kpi-card fade-up delay-2">
-                <div class="kpi-value">18.5</div>
-                <div class="kpi-label">Живородени<br>на опрасване</div>
+                <div class="kpi-icon">
+                    <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/></svg>
+                </div>
+                <div class="kpi-value">Алармена система</div>
+                <div class="kpi-label">Критични, предупредителни и информационни сигнали</div>
             </div>
             <div class="kpi-card fade-up delay-3">
-                <div class="kpi-value">36&ndash;38</div>
-                <div class="kpi-label">Отбити прасета /<br>свиня-майка / год.</div>
+                <div class="kpi-icon">
+                    <svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+                </div>
+                <div class="kpi-value">9 типа отчети</div>
+                <div class="kpi-label">P&L, NPD, тегло, фуражна ефективност, Excel експорт</div>
             </div>
             <div class="kpi-card fade-up delay-4">
-                <div class="kpi-value">1000g</div>
-                <div class="kpi-label">Среден дневен<br>прираст (ADG)</div>
-            </div>
-            <div class="kpi-card fade-up delay-5">
-                <div class="kpi-value">&lt;5%</div>
-                <div class="kpi-label">Смъртност<br>при угояване</div>
+                <div class="kpi-icon">
+                    <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+                </div>
+                <div class="kpi-value">Бонус система</div>
+                <div class="kpi-label">KPI-базирано изчисление на бонуси по роли и сектори</div>
             </div>
         </div>
     </div>
@@ -827,18 +927,18 @@
 <!-- CTA -->
 <section class="cta-section">
     <div class="cta-bg">
-        <img src="/images/farm-aerial.png" alt="Свинеферма">
+        <img src="/images/farm-aerial.png" alt="Модерна свинеферма">
         <div class="cta-overlay"></div>
     </div>
     <div class="cta-content">
-        <h2 class="fade-up">Готови ли сте за<br>дигитална ферма?</h2>
-        <p class="fade-up delay-1">Влезте в системата и управлявайте цялата производствена верига &mdash; от генетиката до финансовия отчет &mdash; с едно кликване.</p>
+        <h2 class="fade-up">Готови за следващото<br>ниво на управление?</h2>
+        <p class="fade-up delay-1">Присъединете се към модерните свинекомплекси, които вече използват Pig-Tech ERP. Заявете демо достъп и вижте как системата ще трансформира вашата ферма.</p>
         <div class="cta-buttons fade-up delay-2">
             <a href="/app/login" class="btn-primary">
                 <svg viewBox="0 0 24 24"><path d="M11 7L9.6 8.4l2.6 2.6H2v2h10.2l-2.6 2.6L11 17l5-5-5-5zm9 12h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-8v2h8v14z"/></svg>
-                Влез в системата
+                Заявете демо
             </a>
-            <a href="#features" class="btn-outline">Научи повече</a>
+            <a href="#features" class="btn-outline">Разгледайте модулите</a>
         </div>
     </div>
 </section>
@@ -854,9 +954,9 @@
         </div>
         <div class="footer-copy">AjaxERP &copy; 2026 &bull; OpenKBS Platform</div>
         <div class="footer-links">
-            <a href="#features">Модули</a>
-            <a href="#production">Производство</a>
-            <a href="#kpis">KPI</a>
+            <a href="#features">Възможности</a>
+            <a href="#why">Защо Pig-Tech</a>
+            <a href="#production">Как работи</a>
             <a href="/app/login">Вход</a>
         </div>
     </div>
