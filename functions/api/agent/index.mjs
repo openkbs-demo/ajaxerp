@@ -104,3 +104,32 @@ export async function agentHistory(db, { session_id, limit }) {
 
   return { messages: result.rows };
 }
+
+/**
+ * agentSessions — list past conversation sessions for a user
+ * @param {object} db - PostgreSQL client
+ * @param {object} params - { personnel_id, limit }
+ */
+export async function agentSessions(db, { personnel_id, limit }) {
+  if (!personnel_id) throw new Error('personnel_id е задължителен');
+
+  const result = await db.query(
+    `SELECT
+       ac.session_id,
+       MIN(ac.created_at) AS started_at,
+       MAX(ac.created_at) AS last_message_at,
+       COUNT(*) AS message_count,
+       (SELECT ac2.content FROM agent_conversations ac2
+        WHERE ac2.session_id = ac.session_id AND ac2.role = 'user'
+        ORDER BY ac2.created_at ASC LIMIT 1
+       ) AS first_message
+     FROM agent_conversations ac
+     WHERE ac.personnel_id = $1
+     GROUP BY ac.session_id
+     ORDER BY MAX(ac.created_at) DESC
+     LIMIT $2`,
+    [personnel_id, limit || 20]
+  );
+
+  return { sessions: result.rows };
+}

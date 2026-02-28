@@ -68,7 +68,11 @@ export default function AgentChat({ isOpen, onClose }) {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [expanded, setExpanded] = useState(false)
   const [sessionId, setSessionId] = useState(getSessionId)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [sessions, setSessions] = useState([])
+  const [sessionsLoading, setSessionsLoading] = useState(false)
   const messagesEnd = useRef(null)
   const textareaRef = useRef(null)
 
@@ -90,6 +94,24 @@ export default function AgentChat({ isOpen, onClose }) {
 
   // Auto-scroll on new messages
   useEffect(() => { scrollToBottom() }, [messages, scrollToBottom])
+
+  // Load sessions when history panel opens
+  const loadSessions = useCallback(async () => {
+    if (!user?.id) return
+    setSessionsLoading(true)
+    try {
+      const data = await api('agent.sessions', { personnel_id: user.id })
+      setSessions(data.sessions || [])
+    } catch {
+      setSessions([])
+    } finally {
+      setSessionsLoading(false)
+    }
+  }, [user?.id])
+
+  useEffect(() => {
+    if (historyOpen) loadSessions()
+  }, [historyOpen, loadSessions])
 
   // Focus textarea on open
   useEffect(() => {
@@ -130,19 +152,73 @@ export default function AgentChat({ isOpen, onClose }) {
     const id = newSession()
     setSessionId(id)
     setMessages([])
+    setHistoryOpen(false)
+  }
+
+  const handleSelectSession = (sid) => {
+    sessionStorage.setItem('agent_session_id', sid)
+    setSessionId(sid)
+    setHistoryOpen(false)
   }
 
   if (!isOpen) return null
 
   return (
-    <div className="agent-chat">
+    <div className={`agent-chat ${expanded ? 'agent-chat-expanded' : ''}`}>
       <div className="agent-chat-header">
         <h4>AI Асистент</h4>
         <div className="agent-chat-header-actions">
-          <button onClick={handleNewSession} title="Нов разговор">+</button>
-          <button onClick={onClose} title="Затвори">&times;</button>
+          <button onClick={handleNewSession} title="Нов разговор">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          </button>
+          <button onClick={() => setHistoryOpen(h => !h)} title="История">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </button>
+          <button onClick={() => setExpanded(e => !e)} title={expanded ? 'Компактен изглед' : 'Цял екран'}>
+            {expanded
+              ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+              : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+            }
+          </button>
+          <button onClick={onClose} title="Затвори">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
         </div>
       </div>
+
+      {historyOpen && (
+        <div className="agent-history-panel">
+          <div className="agent-history-title">История на разговорите</div>
+          {sessionsLoading ? (
+            <div className="agent-history-loading">Зареждане...</div>
+          ) : sessions.length === 0 ? (
+            <div className="agent-history-empty">Няма предишни разговори</div>
+          ) : (
+            <div className="agent-history-list">
+              {sessions.map(s => (
+                <button
+                  key={s.session_id}
+                  className={`agent-history-item ${s.session_id === sessionId ? 'active' : ''}`}
+                  onClick={() => handleSelectSession(s.session_id)}
+                >
+                  <span className="agent-history-preview">
+                    {s.first_message
+                      ? (s.first_message.length > 60
+                          ? s.first_message.slice(0, 60) + '...'
+                          : s.first_message)
+                      : '(празен разговор)'}
+                  </span>
+                  <span className="agent-history-time">
+                    {new Date(s.started_at).toLocaleDateString('bg-BG', {
+                      day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+                    })}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="agent-mode-toggle">
         {MODES.map(m => (

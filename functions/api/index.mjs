@@ -4,7 +4,7 @@
  */
 import crypto from 'crypto';
 import { getDB } from './db.mjs';
-import { agentChat, agentHistory } from './agent/index.mjs';
+import { agentChat, agentHistory, agentSessions } from './agent/index.mjs';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -339,6 +339,7 @@ export async function handler(event) {
     // ─── AI Agent ─────────────────────────────────────────────────────────
     if (action === 'agent.chat') return ok(await agentChat(db, body));
     if (action === 'agent.history') return ok(await agentHistory(db, body));
+    if (action === 'agent.sessions') return ok(await agentSessions(db, body));
 
     return err(400, `Unknown action: ${action}`);
   } catch (error) {
