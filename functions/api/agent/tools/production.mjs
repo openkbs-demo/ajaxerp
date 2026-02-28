@@ -5,9 +5,24 @@ import { z } from 'zod';
 import { tool } from 'ai';
 import { safeQuery } from './shared.mjs';
 
+/** Wrap tool execute with try/catch so errors become data (not exceptions) */
+function safeTool(def) {
+  const originalExecute = def.execute;
+  return tool({
+    ...def,
+    execute: async (args) => {
+      try {
+        return await originalExecute(args);
+      } catch (e) {
+        return { error: e.message };
+      }
+    }
+  });
+}
+
 export function productionTools(db) {
   return {
-    get_kpis: tool({
+    get_kpis: safeTool({
       description: 'Извличане на последни KPI стойности спрямо целевите показатели. Връща кратък отчет с актуални метрики.',
       parameters: z.object({
         kpi_name: z.string().optional().describe('Филтър по конкретен KPI (напр. "born_alive_avg", "mortality_pct")'),
@@ -18,7 +33,7 @@ export function productionTools(db) {
                      br.target_value, br.operator, br.kpi_label
                    FROM kpi_snapshots ks
                    LEFT JOIN bonus_rules br ON br.kpi_name = ks.kpi_name
-                   WHERE ks.snapshot_date >= CURRENT_DATE - $1`;
+                   WHERE ks.snapshot_date >= CURRENT_DATE - CAST($1 AS integer)`;
         const params = [days || 30];
         if (kpi_name) {
           sql += ` AND ks.kpi_name = $2`;
@@ -29,7 +44,7 @@ export function productionTools(db) {
       }
     }),
 
-    get_active_alerts: tool({
+    get_active_alerts: safeTool({
       description: 'Неприети (активни) аларми по тежест и категория. Показва критични проблеми изискващи внимание.',
       parameters: z.object({
         severity: z.string().optional().describe('Филтър: critical, warning, info'),
@@ -47,7 +62,7 @@ export function productionTools(db) {
       }
     }),
 
-    get_litter_performance: tool({
+    get_litter_performance: safeTool({
       description: 'Резултати от последни раждания — живородени, отбити, тегла. По избор — за конкретна свиня-майка.',
       parameters: z.object({
         sow_ear_tag: z.string().optional().describe('Ушна марка на свиня-майка'),
@@ -68,7 +83,7 @@ export function productionTools(db) {
       }
     }),
 
-    get_mortality_data: tool({
+    get_mortality_data: safeTool({
       description: 'Смъртност по период, категория и хале — брой, причини. За анализ на тенденции.',
       parameters: z.object({
         days: z.number().optional().default(30).describe('Период в дни'),
@@ -91,7 +106,7 @@ export function productionTools(db) {
       }
     }),
 
-    get_hall_status: tool({
+    get_hall_status: safeTool({
       description: 'Статус на халета — заетост, зона, хигиенни паузи. Преглед на капацитета.',
       parameters: z.object({
         sector_code: z.string().optional().describe('Код на сектор: FAR, NUR, FIN, QUA')
@@ -112,7 +127,7 @@ export function productionTools(db) {
       }
     }),
 
-    get_water_trends: tool({
+    get_water_trends: safeTool({
       description: 'Тенденции в консумацията на вода по халета (ранно предупреждение за болести).',
       parameters: z.object({
         hall_id: z.number().optional().describe('ID на хале'),
@@ -123,7 +138,7 @@ export function productionTools(db) {
                      wc.consumption_m3, wc.animal_count, wc.liters_per_animal
                    FROM water_consumption wc
                    JOIN halls h ON h.id = wc.hall_id
-                   WHERE wc.reading_date >= CURRENT_DATE - $1`;
+                   WHERE wc.reading_date >= CURRENT_DATE - CAST($1 AS integer)`;
         const params = [days || 14];
         if (hall_id) { params.push(hall_id); sql += ` AND wc.hall_id = $${params.length}`; }
         sql += ` ORDER BY wc.reading_date DESC, h.name LIMIT 100`;
@@ -131,7 +146,7 @@ export function productionTools(db) {
       }
     }),
 
-    get_sow_pipeline: tool({
+    get_sow_pipeline: safeTool({
       description: 'Брой свине-майки по статус — тръбопровод на размножаване (breeding pipeline).',
       parameters: z.object({}),
       execute: async () => {
@@ -142,7 +157,7 @@ export function productionTools(db) {
       }
     }),
 
-    get_group_performance: tool({
+    get_group_performance: safeTool({
       description: 'Угоителни групи — тегло, бройки, целеви дати за клане.',
       parameters: z.object({
         active_only: z.boolean().optional().default(true).describe('Само активни групи (без exit_date)')
@@ -160,7 +175,7 @@ export function productionTools(db) {
       }
     }),
 
-    get_financial_summary: tool({
+    get_financial_summary: safeTool({
       description: 'Месечен финансов преглед — приходи, разходи, печалба от P&L моментни снимки.',
       parameters: z.object({
         months: z.number().optional().default(6).describe('Брой месеци назад')
@@ -175,7 +190,7 @@ export function productionTools(db) {
       }
     }),
 
-    get_feed_status: tool({
+    get_feed_status: safeTool({
       description: 'Статус на фуражните компоненти — наличност, под прага за поръчка.',
       parameters: z.object({
         low_only: z.boolean().optional().default(false).describe('Само компоненти под прага')

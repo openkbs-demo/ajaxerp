@@ -52,29 +52,43 @@ export async function agentChat(db, { session_id, personnel_id, message, mode })
 
   // Call LLM
   const model = await getModel(db);
-  const result = await generateText({
-    model,
-    system: systemPrompt,
-    messages,
-    tools,
-    maxSteps: MAX_STEPS,
-    maxTokens: MAX_TOKENS
-  });
 
-  const responseText = result.text || 'Не успях да генерирам отговор.';
+  /** Extract tool_calls from generateText result or partial steps */
+  function extractToolCalls(result) {
+    return result?.steps?.flatMap(step => {
+      const calls = step.toolCalls || [];
+      const results = step.toolResults || [];
+      const resultMap = new Map(results.map(tr => [tr.toolCallId, tr.result]));
+      return calls.map(tc => ({
+        name: tc.toolName,
+        args: tc.args,
+        result: resultMap.get(tc.toolCallId) ?? null
+      }));
+    }) || [];
+  }
 
-  // Save assistant response
-  // Build enriched tool_calls with results paired by toolCallId
-  const toolCalls = result.steps?.flatMap(step => {
-    const calls = step.toolCalls || [];
-    const results = step.toolResults || [];
-    const resultMap = new Map(results.map(tr => [tr.toolCallId, tr.result]));
-    return calls.map(tc => ({
-      name: tc.toolName,
-      args: tc.args,
-      result: resultMap.get(tc.toolCallId) ?? null
-    }));
-  }) || [];
+  let responseText;
+  let toolCalls = [];
+
+  try {
+    const result = await generateText({
+      model,
+      system: systemPrompt,
+      messages,
+      tools,
+      maxSteps: MAX_STEPS,
+      maxTokens: MAX_TOKENS
+    });
+
+    responseText = result.text || 'Не успях да генерирам отговор.';
+    toolCalls = extractToolCalls(result);
+  } catch (llmError) {
+    // Extract partial tool calls from error if available (Vercel AI SDK attaches them)
+    if (llmError.steps) {
+      toolCalls = extractToolCalls(llmError);
+    }
+    responseText = `Грешка: ${llmError.message}`;
+  }
 
   await db.query(
     `INSERT INTO agent_conversations (session_id, personnel_id, agent_mode, role, content, tool_calls)

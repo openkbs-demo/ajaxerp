@@ -244,6 +244,16 @@
   background: var(--primary-dark);
   box-shadow: 0 0 0 2px var(--primary-light);
 }
+.tool-call-icon.error {
+  background: #e53935;
+}
+.tool-call-icon.error:hover {
+  background: #c62828;
+}
+.tool-call-icon.error.active {
+  background: #b71c1c;
+  box-shadow: 0 0 0 2px #ef9a9a;
+}
 .tool-call-detail {
   position: absolute;
   top: 30px;
@@ -268,7 +278,15 @@
   padding-bottom: 4px;
   border-bottom: 1px solid var(--border);
 }
+.tool-call-name.error {
+  color: #c62828;
+}
 .tool-call-section { margin-bottom: 6px; }
+.tool-call-section.tool-call-error pre {
+  background: #ffebee;
+  color: #c62828;
+  border: 1px solid #ef9a9a;
+}
 .tool-call-section strong {
   display: block;
   font-size: 10px;

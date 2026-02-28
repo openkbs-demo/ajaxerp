@@ -33,32 +33,35 @@ function ToolCallIcons({ toolCalls }) {
 
   return (
     <div className="tool-calls-row">
-      {toolCalls.map((tc, idx) => (
-        <div key={idx} className="tool-call-item">
-          <button
-            className={`tool-call-icon ${expandedIdx === idx ? 'active' : ''}`}
-            onClick={() => setExpandedIdx(expandedIdx === idx ? null : idx)}
-            title={tc.name}
-          >
-            {tc.name.replace(/^get_/, '').charAt(0).toUpperCase()}
-          </button>
-          {expandedIdx === idx && (
-            <div className="tool-call-detail">
-              <div className="tool-call-name">{tc.name}</div>
-              <div className="tool-call-section">
-                <strong>Request</strong>
-                <pre>{JSON.stringify(tc.args, null, 2)}</pre>
-              </div>
-              {tc.result != null && (
+      {toolCalls.map((tc, idx) => {
+        const hasError = tc.result && typeof tc.result === 'object' && !Array.isArray(tc.result) && tc.result.error
+        return (
+          <div key={idx} className="tool-call-item">
+            <button
+              className={`tool-call-icon ${expandedIdx === idx ? 'active' : ''} ${hasError ? 'error' : ''}`}
+              onClick={() => setExpandedIdx(expandedIdx === idx ? null : idx)}
+              title={hasError ? `${tc.name} (грешка)` : tc.name}
+            >
+              {tc.name.replace(/^get_/, '').charAt(0).toUpperCase()}
+            </button>
+            {expandedIdx === idx && (
+              <div className="tool-call-detail">
+                <div className={`tool-call-name ${hasError ? 'error' : ''}`}>{tc.name}{hasError ? ' — грешка' : ''}</div>
                 <div className="tool-call-section">
-                  <strong>Response</strong>
-                  <pre>{JSON.stringify(tc.result, null, 2)}</pre>
+                  <strong>Request</strong>
+                  <pre>{JSON.stringify(tc.args, null, 2)}</pre>
                 </div>
-              )}
-            </div>
-          )}
-        </div>
-      ))}
+                {tc.result != null && (
+                  <div className={`tool-call-section ${hasError ? 'tool-call-error' : ''}`}>
+                    <strong>Response</strong>
+                    <pre>{JSON.stringify(tc.result, null, 2)}</pre>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
