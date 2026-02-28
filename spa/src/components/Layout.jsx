@@ -42,6 +42,7 @@ export default function Layout() {
         </div>
         <nav className="sidebar-nav" onClick={() => setSidebarOpen(false)}>
           <NavLink to="/dashboard" end>&#128202; Табло</NavLink>
+          <NavLink to="/alerts">&#128276; Аларми{newAlertCount > 0 && <span className="nav-badge">{newAlertCount > 99 ? '99+' : newAlertCount}</span>}</NavLink>
           <NavLink to="/animals">&#128055; Разплод</NavLink>
           <NavLink to="/groups">&#128230; Партиди</NavLink>
           <NavLink to="/events">&#128221; Събития</NavLink>
@@ -51,7 +52,6 @@ export default function Layout() {
           <NavLink to="/expenses">&#128200; Разходи</NavLink>
           <NavLink to="/reports">&#128203; Отчети</NavLink>
           <NavLink to="/logistics">&#128666; Логистика</NavLink>
-          <NavLink to="/alerts">&#128276; Аларми{newAlertCount > 0 && <span className="nav-badge">{newAlertCount > 99 ? '99+' : newAlertCount}</span>}</NavLink>
           <NavLink to="/halls">&#127970; Халета</NavLink>
           <NavLink to="/biosecurity">&#128737; Биосигурност</NavLink>
           <NavLink to="/bonuses">&#127942; Бонуси</NavLink>

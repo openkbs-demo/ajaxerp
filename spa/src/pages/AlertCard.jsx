@@ -13,6 +13,7 @@ const STATUS_BG = { new: 'Нова', in_progress: 'В обработка', close
 const STATUS_BADGE = { new: 'red', in_progress: 'yellow', closed: 'green' }
 const SEV_BG = { critical: 'КРИТИЧНА', warning: 'ПРЕДУПРЕЖДЕНИЕ', info: 'ИНФО' }
 const SEV_BADGE = { critical: 'red', warning: 'yellow', info: 'blue' }
+const CAT_BG = { reproduction: 'Репродукция', culling: 'Бракуване', feed: 'Фуражи', mortality: 'Смъртност', biosecurity: 'Биосигурност', veterinary: 'Ветеринарен', inventory: 'Инвентар', logistics: 'Логистика', water: 'Вода' }
 
 export default function AlertCard() {
   const { id } = useParams()
@@ -89,7 +90,7 @@ export default function AlertCard() {
       <div className="card" style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
           <span className={`badge ${SEV_BADGE[alert.severity]}`}>{SEV_BG[alert.severity]}</span>
-          <span className="badge grey">{alert.category}</span>
+          <span className="badge grey">{CAT_BG[alert.category] || alert.category}</span>
           <span className={`badge ${STATUS_BADGE[alert.status]}`}>{STATUS_BG[alert.status]}</span>
           <span style={{ fontSize: 12, color: 'var(--text-secondary)', marginLeft: 'auto' }}>{fmtDate(alert.created_at)}</span>
         </div>
@@ -120,7 +121,7 @@ export default function AlertCard() {
         <h3>Детайли</h3>
         <div className="grid grid-4">
           <div><small>Тежест</small><div>{SEV_BG[alert.severity]}</div></div>
-          <div><small>Категория</small><div>{alert.category}</div></div>
+          <div><small>Категория</small><div>{CAT_BG[alert.category] || alert.category}</div></div>
           <div><small>Статус</small><div><span className={`badge ${STATUS_BADGE[alert.status]}`}>{STATUS_BG[alert.status]}</span></div></div>
           <div><small>Създадена</small><div>{fmtDate(alert.created_at)}</div></div>
           {alert.related_entity_type && (

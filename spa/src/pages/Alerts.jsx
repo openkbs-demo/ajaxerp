@@ -9,20 +9,32 @@ function fmtDate(d) {
 }
 
 const STATUS_BG = { new: 'Нова', in_progress: 'В обработка', closed: 'Приключена' }
-const STATUS_BADGE = { new: 'red', in_progress: 'yellow', closed: 'green' }
+const CAT_BG = { reproduction: 'Репродукция', culling: 'Бракуване', feed: 'Фуражи', mortality: 'Смъртност', biosecurity: 'Биосигурност', veterinary: 'Ветеринарен', inventory: 'Инвентар', logistics: 'Логистика', water: 'Вода' }
 
 export default function Alerts() {
   const [alerts, setAlerts] = useState([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState('new')
+  const [filter, setFilter] = useState(null)
+  const [newCount, setNewCount] = useState(0)
+
+  // On mount: default to 'new' if there are new alerts, otherwise 'all'
+  useEffect(() => {
+    api('alerts.countNew').then(r => {
+      const c = r.count || 0
+      setNewCount(c)
+      setFilter(c > 0 ? 'new' : 'all')
+    }).catch(() => setFilter('all'))
+  }, [])
 
   const load = () => {
+    if (filter === null) return
     setLoading(true)
     const params = filter === 'all' ? {} : { status: filter }
     api('alerts.list', { ...params, limit: 100 })
       .then(r => setAlerts(r.alerts))
       .catch(console.error)
       .finally(() => setLoading(false))
+    api('alerts.countNew').then(r => setNewCount(r.count || 0)).catch(() => {})
   }
 
   useEffect(() => { load() }, [filter])
@@ -42,13 +54,11 @@ export default function Alerts() {
         <button className="btn btn-outline" onClick={recalcKPI}>Преизчисли KPI</button>
       </div>
 
-      <div className="filters">
-        <select value={filter} onChange={e => setFilter(e.target.value)}>
-          <option value="new">Нови</option>
-          <option value="in_progress">В обработка</option>
-          <option value="closed">Приключени</option>
-          <option value="all">Всички</option>
-        </select>
+      <div className="tabs">
+        <div className={`tab ${filter === 'all' ? 'active' : ''}`} onClick={() => setFilter('all')}>Всички</div>
+        <div className={`tab ${filter === 'new' ? 'active' : ''}`} onClick={() => setFilter('new')}>Нови{newCount > 0 && <span className="nav-badge" style={{ marginLeft: 6 }}>{newCount > 99 ? '99+' : newCount}</span>}</div>
+        <div className={`tab ${filter === 'in_progress' ? 'active' : ''}`} onClick={() => setFilter('in_progress')}>В обработка</div>
+        <div className={`tab ${filter === 'closed' ? 'active' : ''}`} onClick={() => setFilter('closed')}>Приключени</div>
       </div>
 
       <div className="card">
@@ -77,8 +87,8 @@ export default function Alerts() {
                   <span className={`badge ${a.severity === 'critical' ? 'red' : a.severity === 'warning' ? 'yellow' : 'blue'}`}>
                     {a.severity === 'critical' ? 'КРИТИЧНА' : a.severity === 'warning' ? 'ПРЕДУПРЕЖДЕНИЕ' : 'ИНФО'}
                   </span>
-                  <span className="badge grey">{a.category}</span>
-                  <span className={`badge ${STATUS_BADGE[a.status]}`}>{STATUS_BG[a.status]}</span>
+                  <span className="badge grey">{CAT_BG[a.category] || a.category}</span>
+                  <span className="badge grey">{STATUS_BG[a.status]}</span>
                 </div>
                 <div>{renderMsg()}</div>
                 {a.status !== 'new' && a.acknowledged_by_name && (
@@ -89,7 +99,7 @@ export default function Alerts() {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
                 <div className="alert-time">{fmtDate(a.created_at)}</div>
-                <Link to={`/alerts/${a.id}`} className="btn btn-sm btn-outline">Детайли</Link>
+                <Link to={`/alerts/${a.id}`} className="btn btn-sm" style={{ background: 'var(--primary)', color: '#fff' }}>Детайли</Link>
               </div>
             </div>
           )})
