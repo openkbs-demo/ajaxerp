@@ -3,24 +3,883 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pig-Tech ERP | AjaxERP</title>
+    <title>Pig-Tech ERP | Система за управление на свинеферма</title>
+    <meta name="description" content="Pig-Tech ERP — интелигентна система за управление на свинеферма с DanBred генетика. Пълен производствен цикъл, биосигурност, финанси, логистика и AI анализи.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #1b5e20 0%, #2e7d32 50%, #4caf50 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-        .container { background: white; padding: 3rem; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); text-align: center; max-width: 500px; width: 90%; }
-        h1 { color: #1b5e20; margin-bottom: 0.5rem; font-size: 2rem; }
-        .subtitle { color: #666; margin-bottom: 2rem; line-height: 1.6; font-size: 0.95rem; }
-        .btn { display: inline-block; padding: 14px 32px; background: linear-gradient(135deg, #1b5e20 0%, #2e7d32 100%); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 1rem; transition: opacity 0.2s; }
-        .btn:hover { opacity: 0.9; }
-        .footer { margin-top: 1.5rem; color: #999; font-size: 0.75rem; }
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --green-900: #0a2e12;
+            --green-800: #1b5e20;
+            --green-700: #2e7d32;
+            --green-600: #388e3c;
+            --green-500: #4caf50;
+            --green-400: #66bb6a;
+            --green-300: #81c784;
+            --green-100: #c8e6c9;
+            --green-50: #e8f5e9;
+            --gold: #f9a825;
+            --gold-light: #fdd835;
+            --text-dark: #1a1a2e;
+            --text-medium: #4a4a5a;
+            --text-light: #7a7a8a;
+            --white: #ffffff;
+            --off-white: #f8faf8;
+            --border: rgba(46, 125, 50, 0.12);
+        }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            color: var(--text-dark);
+            background: var(--white);
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ── NAV ── */
+        .nav {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+            padding: 0 2rem;
+            height: 72px;
+            display: flex; align-items: center; justify-content: space-between;
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            transition: all 0.3s ease;
+        }
+        .nav.scrolled { box-shadow: 0 4px 30px rgba(0,0,0,0.08); }
+        .nav-brand {
+            display: flex; align-items: center; gap: 12px;
+            text-decoration: none; color: var(--green-800);
+        }
+        .nav-logo {
+            width: 42px; height: 42px;
+            background: linear-gradient(135deg, var(--green-700), var(--green-500));
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 4px 12px rgba(46,125,50,0.3);
+        }
+        .nav-logo svg { width: 26px; height: 26px; fill: white; }
+        .nav-title { font-weight: 800; font-size: 1.25rem; letter-spacing: -0.02em; }
+        .nav-title span { color: var(--green-500); }
+        .nav-links { display: flex; align-items: center; gap: 2rem; }
+        .nav-links a {
+            text-decoration: none; color: var(--text-medium);
+            font-size: 0.9rem; font-weight: 500;
+            transition: color 0.2s;
+        }
+        .nav-links a:hover { color: var(--green-700); }
+        .nav-cta {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 10px 24px;
+            background: linear-gradient(135deg, var(--green-700), var(--green-600));
+            color: white !important; border-radius: 10px;
+            font-weight: 600; font-size: 0.9rem;
+            box-shadow: 0 4px 15px rgba(46,125,50,0.35);
+            transition: all 0.3s ease;
+        }
+        .nav-cta:hover { transform: translateY(-1px); box-shadow: 0 6px 25px rgba(46,125,50,0.45); }
+        .nav-cta svg { width: 16px; height: 16px; fill: currentColor; }
+
+        .mobile-toggle {
+            display: none; background: none; border: none; cursor: pointer;
+            width: 40px; height: 40px; border-radius: 8px;
+            align-items: center; justify-content: center;
+        }
+        .mobile-toggle svg { width: 24px; height: 24px; stroke: var(--text-dark); }
+
+        /* ── HERO ── */
+        .hero {
+            position: relative;
+            min-height: 100vh;
+            display: flex; align-items: center;
+            padding: 120px 2rem 80px;
+            overflow: hidden;
+        }
+        .hero-bg {
+            position: absolute; inset: 0; z-index: 0;
+        }
+        .hero-bg img {
+            width: 100%; height: 100%;
+            object-fit: cover;
+            filter: brightness(0.3);
+        }
+        .hero-gradient {
+            position: absolute; inset: 0;
+            background:
+                linear-gradient(135deg, rgba(10,46,18,0.92) 0%, rgba(27,94,32,0.75) 40%, rgba(46,125,50,0.5) 100%),
+                linear-gradient(to top, rgba(10,46,18,0.9) 0%, transparent 40%);
+        }
+        .hero-content {
+            position: relative; z-index: 2;
+            max-width: 1200px; margin: 0 auto;
+            display: grid; grid-template-columns: 1fr 1fr;
+            gap: 4rem; align-items: center;
+        }
+        .hero-text { color: white; }
+        .hero-badge {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 8px 18px;
+            background: rgba(255,255,255,0.12);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 50px;
+            font-size: 0.85rem; font-weight: 500;
+            color: var(--green-300);
+            margin-bottom: 1.5rem;
+            backdrop-filter: blur(10px);
+        }
+        .hero-badge .dot {
+            width: 8px; height: 8px;
+            background: var(--green-400);
+            border-radius: 50%;
+            animation: pulse-dot 2s ease-in-out infinite;
+        }
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.3); }
+        }
+        .hero h1 {
+            font-size: 3.8rem; font-weight: 900;
+            line-height: 1.08; letter-spacing: -0.03em;
+            margin-bottom: 1.5rem;
+        }
+        .hero h1 .accent {
+            background: linear-gradient(135deg, var(--green-300), var(--gold-light));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .hero-desc {
+            font-size: 1.2rem; line-height: 1.7;
+            color: rgba(255,255,255,0.8);
+            margin-bottom: 2.5rem;
+            max-width: 520px;
+        }
+        .hero-actions { display: flex; gap: 1rem; flex-wrap: wrap; }
+        .btn-primary {
+            display: inline-flex; align-items: center; gap: 10px;
+            padding: 16px 36px;
+            background: linear-gradient(135deg, var(--green-500), var(--green-400));
+            color: var(--green-900); border-radius: 14px;
+            font-weight: 700; font-size: 1.05rem;
+            text-decoration: none; border: none; cursor: pointer;
+            box-shadow: 0 8px 30px rgba(76,175,80,0.4);
+            transition: all 0.3s ease;
+        }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(76,175,80,0.5); }
+        .btn-primary svg { width: 20px; height: 20px; fill: currentColor; }
+        .btn-outline {
+            display: inline-flex; align-items: center; gap: 10px;
+            padding: 16px 36px;
+            background: rgba(255,255,255,0.08);
+            color: white; border-radius: 14px;
+            font-weight: 600; font-size: 1.05rem;
+            text-decoration: none; border: 1px solid rgba(255,255,255,0.25);
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+        .btn-outline:hover { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.4); }
+
+        .hero-stats {
+            display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.25rem;
+        }
+        .hero-stat {
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 16px;
+            padding: 1.5rem;
+            backdrop-filter: blur(20px);
+            transition: all 0.3s ease;
+        }
+        .hero-stat:hover { background: rgba(255,255,255,0.14); transform: translateY(-4px); }
+        .hero-stat-value {
+            font-size: 2.4rem; font-weight: 800;
+            color: var(--green-300);
+            letter-spacing: -0.02em;
+            line-height: 1;
+            margin-bottom: 0.4rem;
+        }
+        .hero-stat-label {
+            font-size: 0.85rem; color: rgba(255,255,255,0.6);
+            font-weight: 500;
+        }
+
+        /* ── TRUST BAR ── */
+        .trust-bar {
+            background: var(--green-800);
+            padding: 2rem;
+            text-align: center;
+        }
+        .trust-bar-inner {
+            max-width: 1200px; margin: 0 auto;
+            display: flex; align-items: center; justify-content: center;
+            gap: 3rem; flex-wrap: wrap;
+        }
+        .trust-item {
+            display: flex; align-items: center; gap: 10px;
+            color: var(--green-300); font-size: 0.9rem; font-weight: 500;
+        }
+        .trust-item svg { width: 20px; height: 20px; fill: var(--green-400); flex-shrink: 0; }
+
+        /* ── SECTIONS SHARED ── */
+        section { padding: 100px 2rem; }
+        .section-header { text-align: center; margin-bottom: 4rem; }
+        .section-tag {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 6px 16px;
+            background: var(--green-50);
+            color: var(--green-700);
+            border-radius: 50px;
+            font-size: 0.8rem; font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 1rem;
+        }
+        .section-tag svg { width: 14px; height: 14px; fill: var(--green-600); }
+        .section-title {
+            font-size: 2.8rem; font-weight: 800;
+            letter-spacing: -0.03em;
+            color: var(--text-dark);
+            margin-bottom: 1rem;
+        }
+        .section-desc {
+            font-size: 1.1rem; color: var(--text-light);
+            max-width: 600px; margin: 0 auto;
+            line-height: 1.7;
+        }
+
+        /* ── FEATURES ── */
+        .features { background: var(--off-white); }
+        .features-grid {
+            max-width: 1200px; margin: 0 auto;
+            display: grid; grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+        }
+        .feature-card {
+            background: white;
+            border-radius: 20px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            transition: all 0.4s ease;
+        }
+        .feature-card:hover { transform: translateY(-6px); box-shadow: 0 20px 60px rgba(0,0,0,0.08); }
+        .feature-img {
+            width: 100%; height: 200px; object-fit: cover;
+            transition: transform 0.6s ease;
+        }
+        .feature-card:hover .feature-img { transform: scale(1.05); }
+        .feature-img-wrap { overflow: hidden; }
+        .feature-body { padding: 1.75rem; }
+        .feature-icon {
+            width: 48px; height: 48px;
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            margin-bottom: 1rem;
+        }
+        .feature-icon svg { width: 24px; height: 24px; fill: white; }
+        .feature-card h3 {
+            font-size: 1.2rem; font-weight: 700;
+            margin-bottom: 0.5rem; color: var(--text-dark);
+        }
+        .feature-card p {
+            font-size: 0.92rem; color: var(--text-light);
+            line-height: 1.65;
+        }
+        .fi-green { background: linear-gradient(135deg, var(--green-600), var(--green-500)); }
+        .fi-blue { background: linear-gradient(135deg, #1565c0, #42a5f5); }
+        .fi-orange { background: linear-gradient(135deg, #e65100, #ff9800); }
+        .fi-purple { background: linear-gradient(135deg, #6a1b9a, #ab47bc); }
+        .fi-red { background: linear-gradient(135deg, #c62828, #ef5350); }
+        .fi-teal { background: linear-gradient(135deg, #00695c, #26a69a); }
+
+        /* ── SHOWCASE (image + text alternating) ── */
+        .showcase { background: white; }
+        .showcase-row {
+            max-width: 1200px; margin: 0 auto;
+            display: grid; grid-template-columns: 1fr 1fr;
+            gap: 4rem; align-items: center;
+            margin-bottom: 5rem;
+        }
+        .showcase-row:last-child { margin-bottom: 0; }
+        .showcase-row.reverse .showcase-img-wrap { order: 2; }
+        .showcase-row.reverse .showcase-text { order: 1; }
+        .showcase-img-wrap {
+            border-radius: 20px; overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+        }
+        .showcase-img-wrap img { width: 100%; display: block; }
+        .showcase-text h3 {
+            font-size: 2rem; font-weight: 800;
+            letter-spacing: -0.02em;
+            margin-bottom: 1rem;
+        }
+        .showcase-text p {
+            font-size: 1.05rem; color: var(--text-medium);
+            line-height: 1.75; margin-bottom: 1.5rem;
+        }
+        .showcase-list { list-style: none; display: flex; flex-direction: column; gap: 0.75rem; }
+        .showcase-list li {
+            display: flex; align-items: flex-start; gap: 12px;
+            font-size: 0.95rem; color: var(--text-medium);
+        }
+        .showcase-list li svg {
+            width: 22px; height: 22px; fill: var(--green-500);
+            flex-shrink: 0; margin-top: 1px;
+        }
+
+        /* ── KPI BAR ── */
+        .kpi-section {
+            background: linear-gradient(135deg, var(--green-900) 0%, var(--green-800) 50%, var(--green-700) 100%);
+            padding: 80px 2rem;
+        }
+        .kpi-inner { max-width: 1200px; margin: 0 auto; }
+        .kpi-header { text-align: center; margin-bottom: 3rem; }
+        .kpi-header h2 {
+            font-size: 2.4rem; font-weight: 800;
+            color: white; letter-spacing: -0.02em;
+            margin-bottom: 0.75rem;
+        }
+        .kpi-header p { color: var(--green-300); font-size: 1.05rem; }
+        .kpi-grid {
+            display: grid; grid-template-columns: repeat(5, 1fr); gap: 1.25rem;
+        }
+        .kpi-card {
+            background: rgba(255,255,255,0.07);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px;
+            padding: 1.75rem 1.25rem;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+        .kpi-card:hover { background: rgba(255,255,255,0.12); transform: translateY(-4px); }
+        .kpi-value {
+            font-size: 2.2rem; font-weight: 800;
+            color: var(--green-300);
+            letter-spacing: -0.02em;
+            margin-bottom: 0.25rem;
+        }
+        .kpi-label {
+            font-size: 0.82rem; color: rgba(255,255,255,0.55);
+            font-weight: 500; line-height: 1.4;
+        }
+
+        /* ── CTA ── */
+        .cta-section {
+            position: relative;
+            padding: 100px 2rem;
+            text-align: center;
+            overflow: hidden;
+        }
+        .cta-bg {
+            position: absolute; inset: 0;
+        }
+        .cta-bg img { width: 100%; height: 100%; object-fit: cover; filter: brightness(0.25); }
+        .cta-overlay {
+            position: absolute; inset: 0;
+            background: linear-gradient(135deg, rgba(10,46,18,0.9), rgba(27,94,32,0.85));
+        }
+        .cta-content { position: relative; z-index: 2; max-width: 700px; margin: 0 auto; }
+        .cta-content h2 {
+            font-size: 2.8rem; font-weight: 900;
+            color: white; letter-spacing: -0.03em;
+            margin-bottom: 1rem;
+        }
+        .cta-content p {
+            font-size: 1.15rem; color: rgba(255,255,255,0.75);
+            margin-bottom: 2.5rem; line-height: 1.7;
+        }
+        .cta-buttons { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+
+        /* ── FOOTER ── */
+        .footer {
+            background: var(--green-900);
+            padding: 3rem 2rem 2rem;
+            color: rgba(255,255,255,0.5);
+        }
+        .footer-inner {
+            max-width: 1200px; margin: 0 auto;
+            display: flex; align-items: center; justify-content: space-between;
+            flex-wrap: wrap; gap: 1rem;
+        }
+        .footer-brand {
+            display: flex; align-items: center; gap: 10px;
+        }
+        .footer-logo {
+            width: 36px; height: 36px;
+            background: linear-gradient(135deg, var(--green-700), var(--green-500));
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .footer-logo svg { width: 22px; height: 22px; fill: white; }
+        .footer-name { font-weight: 700; color: rgba(255,255,255,0.8); font-size: 1rem; }
+        .footer-copy { font-size: 0.82rem; }
+        .footer-links { display: flex; gap: 1.5rem; }
+        .footer-links a {
+            color: rgba(255,255,255,0.5); text-decoration: none;
+            font-size: 0.85rem; transition: color 0.2s;
+        }
+        .footer-links a:hover { color: var(--green-400); }
+
+        /* ── MOBILE ── */
+        @media (max-width: 1024px) {
+            .features-grid { grid-template-columns: repeat(2, 1fr); }
+            .kpi-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+
+        @media (max-width: 768px) {
+            .nav { padding: 0 1rem; }
+            .nav-links { display: none; }
+            .mobile-toggle { display: flex; }
+
+            .mobile-menu {
+                display: none; position: fixed; inset: 0; z-index: 200;
+                background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
+            }
+            .mobile-menu.open { display: flex; }
+            .mobile-menu-panel {
+                position: absolute; top: 0; right: 0;
+                width: 280px; height: 100%;
+                background: white;
+                padding: 2rem;
+                display: flex; flex-direction: column; gap: 0.5rem;
+                box-shadow: -8px 0 30px rgba(0,0,0,0.15);
+            }
+            .mobile-menu-close {
+                align-self: flex-end;
+                background: none; border: none; cursor: pointer;
+                width: 40px; height: 40px;
+                display: flex; align-items: center; justify-content: center;
+                margin-bottom: 1rem;
+            }
+            .mobile-menu-close svg { width: 24px; height: 24px; stroke: var(--text-dark); }
+            .mobile-menu-panel a {
+                display: block; padding: 12px 16px;
+                text-decoration: none; color: var(--text-dark);
+                font-weight: 500; font-size: 1rem;
+                border-radius: 10px; transition: background 0.2s;
+            }
+            .mobile-menu-panel a:hover { background: var(--green-50); color: var(--green-700); }
+            .mobile-menu-panel .nav-cta {
+                text-align: center; margin-top: 0.5rem;
+                justify-content: center; color: white !important;
+            }
+
+            .hero { padding: 100px 1.25rem 60px; }
+            .hero-content { grid-template-columns: 1fr; gap: 2.5rem; }
+            .hero h1 { font-size: 2.4rem; }
+            .hero-desc { font-size: 1.05rem; }
+            .hero-stats { grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
+            .hero-stat { padding: 1.1rem; }
+            .hero-stat-value { font-size: 1.8rem; }
+
+            .section-title { font-size: 2rem; }
+            .features-grid { grid-template-columns: 1fr; }
+            .showcase-row { grid-template-columns: 1fr; gap: 2rem; }
+            .showcase-row.reverse .showcase-img-wrap { order: 0; }
+            .showcase-row.reverse .showcase-text { order: 0; }
+            .showcase-text h3 { font-size: 1.6rem; }
+
+            .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+            .kpi-value { font-size: 1.8rem; }
+
+            .cta-content h2 { font-size: 2rem; }
+
+            .footer-inner { flex-direction: column; text-align: center; }
+        }
+
+        @media (max-width: 480px) {
+            .hero h1 { font-size: 2rem; }
+            .hero-actions { flex-direction: column; }
+            .btn-primary, .btn-outline { width: 100%; justify-content: center; }
+            .kpi-grid { grid-template-columns: 1fr 1fr; }
+            .trust-bar-inner { flex-direction: column; gap: 1rem; }
+        }
+
+        /* ── ANIMATIONS ── */
+        .fade-up {
+            opacity: 0; transform: translateY(30px);
+            transition: opacity 0.7s ease, transform 0.7s ease;
+        }
+        .fade-up.visible { opacity: 1; transform: translateY(0); }
+        .delay-1 { transition-delay: 0.1s; }
+        .delay-2 { transition-delay: 0.2s; }
+        .delay-3 { transition-delay: 0.3s; }
+        .delay-4 { transition-delay: 0.4s; }
+        .delay-5 { transition-delay: 0.5s; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Pig-Tech ERP</h1>
-        <p class="subtitle">Система за управление на свинеферма<br>DanBred генетика | Пълен производствен цикъл</p>
-        <a href="/app/dashboard" class="btn" style="margin-top: 1.5rem;">Влез в системата</a>
-        <div class="footer">AjaxERP &copy; 2026 | OpenKBS Platform</div>
+
+<!-- NAV -->
+<nav class="nav" id="nav">
+    <a href="#" class="nav-brand">
+        <div class="nav-logo">
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/><circle cx="8.5" cy="5.5" r="1.5"/><circle cx="15.5" cy="5.5" r="1.5"/><ellipse cx="12" cy="13" rx="3" ry="2.5"/><circle cx="10.8" cy="12" r="0.6"/><circle cx="13.2" cy="12" r="0.6"/><ellipse cx="12" cy="14" rx="1.2" ry="0.7"/></svg>
+        </div>
+        <span class="nav-title">Pig<span>-Tech</span> ERP</span>
+    </a>
+
+    <div class="nav-links">
+        <a href="#features">Модули</a>
+        <a href="#production">Производство</a>
+        <a href="#kpis">KPI</a>
+        <a href="/app/login" class="nav-cta">
+            <svg viewBox="0 0 24 24"><path d="M11 7L9.6 8.4l2.6 2.6H2v2h10.2l-2.6 2.6L11 17l5-5-5-5zm9 12h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-8v2h8v14z"/></svg>
+            Вход в системата
+        </a>
     </div>
+
+    <button class="mobile-toggle" onclick="document.getElementById('mobileMenu').classList.add('open')">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+</nav>
+
+<!-- MOBILE MENU -->
+<div class="mobile-menu" id="mobileMenu" onclick="if(event.target===this)this.classList.remove('open')">
+    <div class="mobile-menu-panel">
+        <button class="mobile-menu-close" onclick="document.getElementById('mobileMenu').classList.remove('open')">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+        <a href="#features" onclick="document.getElementById('mobileMenu').classList.remove('open')">Модули</a>
+        <a href="#production" onclick="document.getElementById('mobileMenu').classList.remove('open')">Производство</a>
+        <a href="#kpis" onclick="document.getElementById('mobileMenu').classList.remove('open')">KPI</a>
+        <a href="/app/login" class="nav-cta" style="margin-top:1rem">
+            <svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:currentColor"><path d="M11 7L9.6 8.4l2.6 2.6H2v2h10.2l-2.6 2.6L11 17l5-5-5-5zm9 12h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-8v2h8v14z"/></svg>
+            Вход в системата
+        </a>
+    </div>
+</div>
+
+<!-- HERO -->
+<section class="hero">
+    <div class="hero-bg">
+        <img src="/images/hero.png" alt="Модерна свинеферма с технологии">
+        <div class="hero-gradient"></div>
+    </div>
+    <div class="hero-content">
+        <div class="hero-text">
+            <div class="hero-badge fade-up">
+                <span class="dot"></span>
+                DanBred генетика &bull; Пълен производствен цикъл
+            </div>
+            <h1 class="fade-up delay-1">
+                Интелигентно<br>
+                управление на<br>
+                <span class="accent">свинеферма</span>
+            </h1>
+            <p class="hero-desc fade-up delay-2">
+                Цялостна ERP система за модерни свинекомплекси &mdash; от осеменяване до експедиция. Реално време, пълна проследимост, максимална ефективност.
+            </p>
+            <div class="hero-actions fade-up delay-3">
+                <a href="/app/login" class="btn-primary">
+                    <svg viewBox="0 0 24 24"><path d="M11 7L9.6 8.4l2.6 2.6H2v2h10.2l-2.6 2.6L11 17l5-5-5-5zm9 12h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-8v2h8v14z"/></svg>
+                    Влез в системата
+                </a>
+                <a href="#features" class="btn-outline">Разгледай модулите</a>
+            </div>
+        </div>
+        <div class="hero-stats">
+            <div class="hero-stat fade-up delay-1">
+                <div class="hero-stat-value">6 500</div>
+                <div class="hero-stat-label">Свине-майки</div>
+            </div>
+            <div class="hero-stat fade-up delay-2">
+                <div class="hero-stat-value">25</div>
+                <div class="hero-stat-label">Производствени халета</div>
+            </div>
+            <div class="hero-stat fade-up delay-3">
+                <div class="hero-stat-value">5</div>
+                <div class="hero-stat-label">Сектора</div>
+            </div>
+            <div class="hero-stat fade-up delay-4">
+                <div class="hero-stat-value">39</div>
+                <div class="hero-stat-label">Живи KPI показателя</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- TRUST BAR -->
+<div class="trust-bar">
+    <div class="trust-bar-inner">
+        <div class="trust-item">
+            <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
+            Биосигурност
+        </div>
+        <div class="trust-item">
+            <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
+            KPI в реално време
+        </div>
+        <div class="trust-item">
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+            DanBred генетика
+        </div>
+        <div class="trust-item">
+            <svg viewBox="0 0 24 24"><path d="M21 18v1c0 1.1-.9 2-2 2H5c-1.11 0-2-.9-2-2V5c0-1.1.89-2 2-2h14c1.1 0 2 .9 2 2v1h-9c-1.11 0-2 .9-2 2v8c0 1.1.89 2 2 2h9zm-9-2h10V8H12v8zm4-2.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>
+            Финансов контрол
+        </div>
+        <div class="trust-item">
+            <svg viewBox="0 0 24 24"><path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"/></svg>
+            Пълна проследимост
+        </div>
+    </div>
+</div>
+
+<!-- FEATURES -->
+<section class="features" id="features">
+    <div class="section-header">
+        <div class="section-tag fade-up">
+            <svg viewBox="0 0 24 24"><path d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z"/></svg>
+            Модули
+        </div>
+        <h2 class="section-title fade-up delay-1">Всичко за фермата.<br>На едно място.</h2>
+        <p class="section-desc fade-up delay-2">22 специализирани модула покриват целия производствен цикъл &mdash; от генетика до финансов отчет.</p>
+    </div>
+
+    <div class="features-grid">
+        <div class="feature-card fade-up delay-1">
+            <div class="feature-img-wrap">
+                <img src="/images/breeding.png" alt="Разплод и генетика" class="feature-img">
+            </div>
+            <div class="feature-body">
+                <div class="feature-icon fi-green">
+                    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+                </div>
+                <h3>Разплод & Генетика</h3>
+                <p>DanBred генетична програма. Цялостен жизнен цикъл на свинете-майки &mdash; осеменяване, бременност, опрасване, кърмене, отбиване.</p>
+            </div>
+        </div>
+
+        <div class="feature-card fade-up delay-2">
+            <div class="feature-img-wrap">
+                <img src="/images/feed.png" alt="Управление на фуражи" class="feature-img">
+            </div>
+            <div class="feature-body">
+                <div class="feature-icon fi-orange">
+                    <svg viewBox="0 0 24 24"><path d="M18.06 22.99h1.66c.84 0 1.53-.64 1.63-1.46L23 5.05h-5V1h-1.97v4.05h-4.97l.3 2.34c1.71.47 3.31 1.32 4.27 2.26 1.44 1.42 2.43 2.89 2.43 5.29v8.05zM1 21.99V21h15.03v.99c0 .55-.45 1-1.01 1H2.01c-.56 0-1.01-.45-1.01-1zm15.03-7c0-4.58-6.53-5-9.52-5-2.99 0-9.52.42-9.52 5v1h19.03v-1z"/></svg>
+                </div>
+                <h3>Фуражи & Хранене</h3>
+                <p>Рецепти, суровини, производство на партиди. Автоматично отчитане на разход, калкулация цена/тон и следене на силозите.</p>
+            </div>
+        </div>
+
+        <div class="feature-card fade-up delay-3">
+            <div class="feature-img-wrap">
+                <img src="/images/biosecurity.png" alt="Биосигурност" class="feature-img">
+            </div>
+            <div class="feature-body">
+                <div class="feature-icon fi-red">
+                    <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
+                </div>
+                <h3>Биосигурност</h3>
+                <p>Контрол на достъпа с 48-часово правило. Хигиенни паузи, карантина, дезинфекция, ветеринарни карентни срокове.</p>
+            </div>
+        </div>
+
+        <div class="feature-card fade-up delay-1">
+            <div class="feature-img-wrap">
+                <img src="/images/health.png" alt="Ветеринарен контрол" class="feature-img">
+            </div>
+            <div class="feature-body">
+                <div class="feature-icon fi-blue">
+                    <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-1.99.9-1.99 2L3 19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-1 11h-4v4h-4v-4H6v-4h4V6h4v4h4v4z"/></svg>
+                </div>
+                <h3>Здраве & Ветеринария</h3>
+                <p>Медикаменти, карентни срокове, ветеринарен дневник. Алармена система с автоматични нотификации при критични отклонения.</p>
+            </div>
+        </div>
+
+        <div class="feature-card fade-up delay-2">
+            <div class="feature-img-wrap">
+                <img src="/images/logistics.png" alt="Логистика" class="feature-img">
+            </div>
+            <div class="feature-body">
+                <div class="feature-icon fi-purple">
+                    <svg viewBox="0 0 24 24"><path d="M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM6 18.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm13.5-9l1.96 2.5H17V9.5h2.5zm-1.5 9c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>
+                </div>
+                <h3>Логистика & Експедиция</h3>
+                <p>Управление на превозни средства, маршрути за доставка на фуражи, експедиция за кланица. Дезинфекция и статус на камиони.</p>
+            </div>
+        </div>
+
+        <div class="feature-card fade-up delay-3">
+            <div class="feature-img-wrap" style="height:200px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#e8f5e9,#c8e6c9);">
+                <svg viewBox="0 0 24 24" style="width:80px;height:80px;fill:#2e7d32;opacity:0.5"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
+            </div>
+            <div class="feature-body">
+                <div class="feature-icon fi-teal">
+                    <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
+                </div>
+                <h3>Финанси & Отчети</h3>
+                <p>P&L по сектори и партиди. Приходи, разходи, заплати, бонуси. 9 типа справки с Excel експорт и финансови KPI.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- SHOWCASE: PRODUCTION -->
+<section class="showcase" id="production">
+    <div class="section-header">
+        <div class="section-tag fade-up">
+            <svg viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg>
+            Производство
+        </div>
+        <h2 class="section-title fade-up delay-1">Пълен производствен цикъл</h2>
+        <p class="section-desc fade-up delay-2">5 сектора, 25 халета, безкомпромисен контрол на всяка стъпка.</p>
+    </div>
+
+    <div class="showcase-row fade-up">
+        <div class="showcase-img-wrap">
+            <img src="/images/breeding.png" alt="DanBred свине-майки">
+        </div>
+        <div class="showcase-text">
+            <h3>DanBred генетична програма</h3>
+            <p>Управление на цялостния репродуктивен цикъл на свинете-майки с DanBred генетика &mdash; доказано най-високата продуктивност в Европа.</p>
+            <ul class="showcase-list">
+                <li>
+                    <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
+                    7-степенна машина на статуса: от осеменяване до отбиване
+                </li>
+                <li>
+                    <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
+                    Кръстосано отглеждане (cross-fostering) за оптимален кърмителен капацитет
+                </li>
+                <li>
+                    <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
+                    Цел: 18.5 живородени, 36&ndash;38 отбити/свиня-майка/година
+                </li>
+                <li>
+                    <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
+                    Автоматични предложения за бракуване по продуктивност
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="showcase-row reverse fade-up">
+        <div class="showcase-img-wrap">
+            <img src="/images/farm-aerial.png" alt="Ферма от въздуха">
+        </div>
+        <div class="showcase-text">
+            <h3>25 халета в 5 сектора</h3>
+            <p>Изцяло дигитализирано управление на производствените мощности &mdash; от осеменителна зала до угоителна сграда.</p>
+            <ul class="showcase-list">
+                <li>
+                    <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
+                    Осеменяване &bull; Бременност &bull; Опрасване &bull; Подрастване &bull; Угояване
+                </li>
+                <li>
+                    <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
+                    Капацитет и заетост на всяко хале в реално време
+                </li>
+                <li>
+                    <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
+                    Температурни цели по зона, хигиенен статус
+                </li>
+                <li>
+                    <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
+                    Биосигурностни зони с автоматичен 48-часов контрол
+                </li>
+            </ul>
+        </div>
+    </div>
+</section>
+
+<!-- KPI SECTION -->
+<section class="kpi-section" id="kpis">
+    <div class="kpi-inner">
+        <div class="kpi-header fade-up">
+            <h2>Производствени KPI цели</h2>
+            <p>Реално време мониторинг на ключовите показатели за ефективност</p>
+        </div>
+        <div class="kpi-grid">
+            <div class="kpi-card fade-up delay-1">
+                <div class="kpi-value">2.4</div>
+                <div class="kpi-label">Опрасвания /<br>свиня-майка / год.</div>
+            </div>
+            <div class="kpi-card fade-up delay-2">
+                <div class="kpi-value">18.5</div>
+                <div class="kpi-label">Живородени<br>на опрасване</div>
+            </div>
+            <div class="kpi-card fade-up delay-3">
+                <div class="kpi-value">36&ndash;38</div>
+                <div class="kpi-label">Отбити прасета /<br>свиня-майка / год.</div>
+            </div>
+            <div class="kpi-card fade-up delay-4">
+                <div class="kpi-value">1000g</div>
+                <div class="kpi-label">Среден дневен<br>прираст (ADG)</div>
+            </div>
+            <div class="kpi-card fade-up delay-5">
+                <div class="kpi-value">&lt;5%</div>
+                <div class="kpi-label">Смъртност<br>при угояване</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+    <div class="cta-bg">
+        <img src="/images/farm-aerial.png" alt="Свинеферма">
+        <div class="cta-overlay"></div>
+    </div>
+    <div class="cta-content">
+        <h2 class="fade-up">Готови ли сте за<br>дигитална ферма?</h2>
+        <p class="fade-up delay-1">Влезте в системата и управлявайте цялата производствена верига &mdash; от генетиката до финансовия отчет &mdash; с едно кликване.</p>
+        <div class="cta-buttons fade-up delay-2">
+            <a href="/app/login" class="btn-primary">
+                <svg viewBox="0 0 24 24"><path d="M11 7L9.6 8.4l2.6 2.6H2v2h10.2l-2.6 2.6L11 17l5-5-5-5zm9 12h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-8v2h8v14z"/></svg>
+                Влез в системата
+            </a>
+            <a href="#features" class="btn-outline">Научи повече</a>
+        </div>
+    </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="footer">
+    <div class="footer-inner">
+        <div class="footer-brand">
+            <div class="footer-logo">
+                <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/><circle cx="8.5" cy="5.5" r="1.5"/><circle cx="15.5" cy="5.5" r="1.5"/></svg>
+            </div>
+            <span class="footer-name">Pig-Tech ERP</span>
+        </div>
+        <div class="footer-copy">AjaxERP &copy; 2026 &bull; OpenKBS Platform</div>
+        <div class="footer-links">
+            <a href="#features">Модули</a>
+            <a href="#production">Производство</a>
+            <a href="#kpis">KPI</a>
+            <a href="/app/login">Вход</a>
+        </div>
+    </div>
+</footer>
+
+<script>
+// Scroll-based nav shadow
+const nav = document.getElementById('nav');
+window.addEventListener('scroll', () => {
+    nav.classList.toggle('scrolled', window.scrollY > 20);
+});
+
+// Intersection Observer for fade-up animations
+const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+        if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+        }
+    });
+}, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+</script>
+
 </body>
 </html>
