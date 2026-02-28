@@ -388,6 +388,9 @@
   font-size: 14px;
   cursor: pointer;
   align-self: flex-end;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .agent-input-area button:hover { background: var(--primary-dark); }
 .agent-input-area button:disabled { opacity: 0.5; cursor: not-allowed; }

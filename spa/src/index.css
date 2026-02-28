@@ -103,7 +103,7 @@ tr:hover { background: #fafafa; }
 .login-error { background: #ffebee; color: var(--danger); padding: 10px 14px; border-radius: 6px; margin-bottom: 16px; font-size: 13px; }
 
 .mobile-header { display: none; position: fixed; top: 0; left: 0; right: 0; height: 56px; background: var(--primary-dark); color: #fff; z-index: 101; padding: 0 16px; align-items: center; gap: 16px; }
-.hamburger { background: none; border: none; color: #fff; font-size: 24px; padding: 4px; }
+.hamburger { background: none; border: none; color: #fff; font-size: 24px; padding: 4px; display: flex; align-items: center; }
 
 .filters { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
 .filters select, .filters input { padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; }

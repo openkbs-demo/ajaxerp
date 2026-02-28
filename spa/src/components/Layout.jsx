@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../AuthContext.jsx'
 import { api } from '../api.js'
+import { LayoutDashboard, Bell, PiggyBank, Package, CalendarDays, Leaf, DollarSign, TrendingUp, Wallet, FileText, Truck, Warehouse, ShieldCheck, Award, Settings, Menu } from 'lucide-react'
 import AgentChat from './AgentChat.jsx'
 
 const ROLE_LABELS = {
@@ -32,7 +33,7 @@ export default function Layout() {
   return (
     <div className="layout">
       <div className="mobile-header">
-        <button className="hamburger" onClick={() => setSidebarOpen(!sidebarOpen)}>&#9776;</button>
+        <button className="hamburger" onClick={() => setSidebarOpen(!sidebarOpen)}><Menu size={22} /></button>
         <span style={{ fontWeight: 600 }}>Pig-Tech ERP</span>
       </div>
       {sidebarOpen && <div className="mobile-overlay" onClick={() => setSidebarOpen(false)} style={{display:'block'}} />}
@@ -41,21 +42,21 @@ export default function Layout() {
           <h2>Pig-Tech ERP</h2>
         </div>
         <nav className="sidebar-nav" onClick={() => setSidebarOpen(false)}>
-          <NavLink to="/dashboard" end>&#128202; Табло</NavLink>
-          <NavLink to="/alerts">&#128276; Аларми{newAlertCount > 0 && <span className="nav-badge">{newAlertCount > 99 ? '99+' : newAlertCount}</span>}</NavLink>
-          <NavLink to="/animals">&#128055; Разплод</NavLink>
-          <NavLink to="/groups">&#128230; Партиди</NavLink>
-          <NavLink to="/events">&#128221; Събития</NavLink>
-          <NavLink to="/feed">&#127806; Фуражи</NavLink>
-          <NavLink to="/finance">&#128176; Финанси</NavLink>
-          <NavLink to="/sales">&#128181; Продажби</NavLink>
-          <NavLink to="/expenses">&#128200; Разходи</NavLink>
-          <NavLink to="/reports">&#128203; Отчети</NavLink>
-          <NavLink to="/logistics">&#128666; Логистика</NavLink>
-          <NavLink to="/halls">&#127970; Халета</NavLink>
-          <NavLink to="/biosecurity">&#128737; Биосигурност</NavLink>
-          <NavLink to="/bonuses">&#127942; Бонуси</NavLink>
-          <NavLink to="/settings">&#9881; Настройки</NavLink>
+          <NavLink to="/dashboard" end><LayoutDashboard size={18} /> Табло</NavLink>
+          <NavLink to="/alerts"><Bell size={18} /> Аларми{newAlertCount > 0 && <span className="nav-badge">{newAlertCount > 99 ? '99+' : newAlertCount}</span>}</NavLink>
+          <NavLink to="/animals"><PiggyBank size={18} /> Разплод</NavLink>
+          <NavLink to="/groups"><Package size={18} /> Партиди</NavLink>
+          <NavLink to="/events"><CalendarDays size={18} /> Събития</NavLink>
+          <NavLink to="/feed"><Leaf size={18} /> Фуражи</NavLink>
+          <NavLink to="/finance"><DollarSign size={18} /> Финанси</NavLink>
+          <NavLink to="/sales"><TrendingUp size={18} /> Продажби</NavLink>
+          <NavLink to="/expenses"><Wallet size={18} /> Разходи</NavLink>
+          <NavLink to="/reports"><FileText size={18} /> Отчети</NavLink>
+          <NavLink to="/logistics"><Truck size={18} /> Логистика</NavLink>
+          <NavLink to="/halls"><Warehouse size={18} /> Халета</NavLink>
+          <NavLink to="/biosecurity"><ShieldCheck size={18} /> Биосигурност</NavLink>
+          <NavLink to="/bonuses"><Award size={18} /> Бонуси</NavLink>
+          <NavLink to="/settings"><Settings size={18} /> Настройки</NavLink>
         </nav>
         <div className="sidebar-user">
           <div className="user-name">{user?.name}</div>

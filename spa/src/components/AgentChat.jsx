@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { api } from '../api.js'
 import { useAuth } from '../AuthContext.jsx'
+import { Plus, Send } from 'lucide-react'
 import './AgentChat.css'
 
 const MODES = [
@@ -169,7 +170,7 @@ export default function AgentChat({ isOpen, onClose }) {
         <h4>AI Асистент</h4>
         <div className="agent-chat-header-actions">
           <button onClick={handleNewSession} title="Нов разговор">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            <Plus size={14} />
           </button>
           <button onClick={() => setHistoryOpen(h => !h)} title="История">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
@@ -262,7 +263,7 @@ export default function AgentChat({ isOpen, onClose }) {
           placeholder={mode === 'production' ? 'Напр. Какви са текущите KPI?' : 'Напр. Колко свине-майки имаме?'}
           disabled={loading}
         />
-        <button onClick={handleSend} disabled={loading || !input.trim()}>&#9654;</button>
+        <button onClick={handleSend} disabled={loading || !input.trim()}><Send size={16} /></button>
       </div>
     </div>
   )
