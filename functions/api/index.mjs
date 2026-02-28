@@ -151,7 +151,10 @@ export async function handler(event) {
 
     // ─── ALERTS ───────────────────────────────────────────────────────
     if (action === 'alerts.list') return await alertsList(db, body);
-    if (action === 'alerts.acknowledge') return await alertsAcknowledge(db, body);
+    if (action === 'alerts.get') return await alertsGet(db, body);
+    if (action === 'alerts.updateStatus') return await alertsUpdateStatus(db, body);
+    if (action === 'alerts.addNote') return await alertsAddNote(db, body);
+    if (action === 'alerts.countNew') return await alertsCountNew(db);
     if (action === 'alerts.check') return await alertsCheck(db);
 
     // ─── SEED ─────────────────────────────────────────────────────────
@@ -997,9 +1000,9 @@ async function eventsList(db, { animal_id, group_id, event_type, hall_id, limit 
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function littersList(db, { limit, weaned_only }) {
-  let q = `SELECT l.id, l.birth_sow_id, l.parity_number, l.born_alive, l.stillborn, l.weaned_count, l.weaning_weight_kg, l.weaning_date, l.birth_date,
-            a.ear_tag as sow_ear_tag, h.name as hall_name
-     FROM litters l JOIN animals a ON a.id = l.birth_sow_id LEFT JOIN halls h ON h.id = a.current_hall_id`;
+  let q = `SELECT l.id, l.birth_sow_id, l.nurse_sow_id, l.parity_number, l.born_alive, l.stillborn, l.weaned_count, l.weaning_weight_kg, l.weaning_date, l.birth_date,
+            a.ear_tag as sow_ear_tag, h.name as hall_name, ns.ear_tag as nurse_ear_tag
+     FROM litters l JOIN animals a ON a.id = l.birth_sow_id LEFT JOIN halls h ON h.id = a.current_hall_id LEFT JOIN animals ns ON ns.id = l.nurse_sow_id`;
   if (weaned_only) q += ` WHERE l.weaning_date IS NOT NULL`;
   q += ` ORDER BY l.birth_date DESC LIMIT $1`;
   const result = await db.query(q, [limit || 50]);
@@ -1545,8 +1548,8 @@ async function kpiRecalculate(db) {
 
 async function createAlert(db, severity, category, message, entityType, entityId, thresholdName, thresholdValue, targetValue) {
   await db.query(
-    `INSERT INTO alerts (severity, category, message, related_entity_type, related_entity_id, threshold_name, threshold_value, target_value)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    `INSERT INTO alerts (severity, category, message, related_entity_type, related_entity_id, threshold_name, threshold_value, target_value, status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'new')`,
     [severity, category, message, entityType || null, entityId || null, thresholdName || null, thresholdValue || null, targetValue || null]
   );
 
@@ -1563,7 +1566,7 @@ async function createAlert(db, severity, category, message, entityType, entityId
   }
 }
 
-async function alertsList(db, { severity, category, acknowledged, limit }) {
+async function alertsList(db, { severity, category, status, limit }) {
   let q = `SELECT a.*, p.name as acknowledged_by_name,
     COALESCE(an.ear_tag, h.name, ag.group_name) as entity_name
     FROM alerts a
@@ -1576,23 +1579,67 @@ async function alertsList(db, { severity, category, acknowledged, limit }) {
   let idx = 1;
   if (severity) { q += ` AND a.severity = $${idx++}`; params.push(severity); }
   if (category) { q += ` AND a.category = $${idx++}`; params.push(category); }
-  if (acknowledged === false || acknowledged === 'false') { q += ' AND a.is_acknowledged = false'; }
-  if (acknowledged === true || acknowledged === 'true') { q += ' AND a.is_acknowledged = true'; }
+  if (status) { q += ` AND a.status = $${idx++}`; params.push(status); }
   q += ' ORDER BY a.created_at DESC';
   q += ` LIMIT $${idx++}`; params.push(limit || 50);
   const result = await db.query(q, params);
   return ok({ alerts: result.rows });
 }
 
-async function alertsAcknowledge(db, { id, acknowledged_by, notes }) {
+async function alertsGet(db, { id }) {
   if (!id) return err(400, 'ID е задължително');
+  const alertRes = await db.query(
+    `SELECT a.*, p.name as acknowledged_by_name,
+      COALESCE(an.ear_tag, h.name, ag.group_name) as entity_name
+      FROM alerts a
+      LEFT JOIN personnel p ON p.id = a.acknowledged_by
+      LEFT JOIN animals an ON a.related_entity_type = 'animal' AND an.id = a.related_entity_id
+      LEFT JOIN halls h ON a.related_entity_type = 'hall' AND h.id = a.related_entity_id
+      LEFT JOIN animal_groups ag ON a.related_entity_type = 'animal_group' AND ag.id = a.related_entity_id
+      WHERE a.id = $1`,
+    [id]
+  );
+  if (alertRes.rows.length === 0) return err(404, 'Алармата не е намерена');
+  const notesRes = await db.query(
+    `SELECT n.*, p.name as author_name FROM alert_notes n LEFT JOIN personnel p ON p.id = n.author_id WHERE n.alert_id = $1 ORDER BY n.created_at ASC`,
+    [id]
+  );
+  return ok({ alert: alertRes.rows[0], notes: notesRes.rows });
+}
+
+async function alertsUpdateStatus(db, { id, status, user_id, notes }) {
+  if (!id) return err(400, 'ID е задължително');
+  const valid = ['new', 'in_progress', 'closed'];
+  if (!status || !valid.includes(status)) return err(400, 'Невалиден статус');
   const result = await db.query(
-    `UPDATE alerts SET is_acknowledged = true, acknowledged_by = $1, acknowledged_at = NOW(), acknowledge_notes = $2
-     WHERE id = $3 RETURNING *`,
-    [acknowledged_by || null, notes || null, id]
+    `UPDATE alerts SET status = $1, acknowledged_by = $2, acknowledged_at = NOW() WHERE id = $3 RETURNING *`,
+    [status, user_id || null, id]
   );
   if (result.rows.length === 0) return err(404, 'Алармата не е намерена');
+  const statusLabels = { new: 'Нова', in_progress: 'В обработка', closed: 'Приключена' };
+  const noteText = (notes && notes.trim()) ? notes.trim() : `Статус → ${statusLabels[status]}`;
+  await db.query(
+    `INSERT INTO alert_notes (alert_id, author_id, note, status_change) VALUES ($1, $2, $3, $4)`,
+    [id, user_id || null, noteText, status]
+  );
   return ok({ alert: result.rows[0] });
+}
+
+async function alertsAddNote(db, { alert_id, user_id, note }) {
+  if (!alert_id) return err(400, 'alert_id е задължително');
+  if (!note || !note.trim()) return err(400, 'Бележката е задължителна');
+  const check = await db.query('SELECT id FROM alerts WHERE id = $1', [alert_id]);
+  if (check.rows.length === 0) return err(404, 'Алармата не е намерена');
+  const result = await db.query(
+    `INSERT INTO alert_notes (alert_id, author_id, note) VALUES ($1, $2, $3) RETURNING *`,
+    [alert_id, user_id || null, note.trim()]
+  );
+  return ok({ note: result.rows[0] });
+}
+
+async function alertsCountNew(db) {
+  const result = await db.query(`SELECT COUNT(*) as count FROM alerts WHERE status = 'new'`);
+  return ok({ count: parseInt(result.rows[0].count) });
 }
 
 async function alertsCheck(db) {
@@ -1664,7 +1711,7 @@ async function dashboardBundle(db) {
   // Active alerts count
   const alertCounts = await db.query(`
     SELECT severity, COUNT(*) as count
-    FROM alerts WHERE is_acknowledged = false
+    FROM alerts WHERE status = 'new'
     GROUP BY severity
   `);
 
@@ -1675,7 +1722,7 @@ async function dashboardBundle(db) {
     LEFT JOIN animals an ON a.related_entity_type = 'animal' AND an.id = a.related_entity_id
     LEFT JOIN halls h ON a.related_entity_type = 'hall' AND h.id = a.related_entity_id
     LEFT JOIN animal_groups ag ON a.related_entity_type = 'animal_group' AND ag.id = a.related_entity_id
-    WHERE a.is_acknowledged = false
+    WHERE a.status IN ('new', 'in_progress')
     ORDER BY CASE a.severity WHEN 'critical' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END, a.created_at DESC
     LIMIT 10
   `);
@@ -1746,7 +1793,7 @@ async function dashboardBundle(db) {
   try {
     const wToday = await db.query(`SELECT COUNT(*) FROM water_consumption WHERE reading_date = CURRENT_DATE`);
     water.todayReadings = parseInt(wToday.rows[0].count);
-    const wAlerts = await db.query(`SELECT COUNT(*) FROM alerts WHERE category = 'water' AND is_acknowledged = false`);
+    const wAlerts = await db.query(`SELECT COUNT(*) FROM alerts WHERE category = 'water' AND status = 'new'`);
     water.alertsToday = parseInt(wAlerts.rows[0].count);
     const wAvg = await db.query(`SELECT AVG(consumption_m3) as avg FROM water_consumption WHERE reading_date >= CURRENT_DATE - INTERVAL '7 days'`);
     water.avgConsumption = parseFloat(wAvg.rows[0]?.avg || 0).toFixed(1);

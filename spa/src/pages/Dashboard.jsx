@@ -86,26 +86,26 @@ export default function Dashboard() {
         <div className="card">
           <h3>Последни аларми <Link to="/alerts" style={{fontSize:12,float:'right'}}>Виж всички</Link></h3>
           {data.recentAlerts?.length > 0 ? data.recentAlerts.map(a => {
-            const link = a.related_entity_type === 'animal' ? `/animals/${a.related_entity_id}`
+            const entityLink = a.related_entity_type === 'animal' ? `/animals/${a.related_entity_id}`
               : a.related_entity_type === 'animal_group' ? `/groups/${a.related_entity_id}`
               : a.related_entity_type === 'hall' ? `/halls/${a.related_entity_id}`
               : null
             const name = a.entity_name
             let msg = a.message
-            if (link && name && msg.includes(name)) {
-              const idx = msg.indexOf(name)
-              return (
-                <div key={a.id} className={`alert-item ${a.severity}`}>
-                  <div className="alert-msg">{msg.slice(0, idx)}<Link to={link} style={{ fontWeight: 700 }}>{name}</Link>{msg.slice(idx + name.length)}</div>
-                  <div className="alert-time">{fmtDate(a.created_at)}</div>
-                </div>
-              )
+            const renderMsg = () => {
+              if (entityLink && name && msg.includes(name)) {
+                const idx = msg.indexOf(name)
+                return <>{msg.slice(0, idx)}<Link to={entityLink} style={{ fontWeight: 700 }} onClick={e => e.stopPropagation()}>{name}</Link>{msg.slice(idx + name.length)}</>
+              }
+              return msg
             }
             return (
-              <div key={a.id} className={`alert-item ${a.severity}`}>
-                <div className="alert-msg">{msg}</div>
-                <div className="alert-time">{fmtDate(a.created_at)}</div>
-              </div>
+              <Link key={a.id} to={`/alerts/${a.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                <div className={`alert-item ${a.severity}`}>
+                  <div className="alert-msg">{renderMsg()}</div>
+                  <div className="alert-time">{fmtDate(a.created_at)}</div>
+                </div>
+              </Link>
             )
           }) : <p style={{color:'var(--text-secondary)'}}>Няма активни аларми.</p>}
         </div>

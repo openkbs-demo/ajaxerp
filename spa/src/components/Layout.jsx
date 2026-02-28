@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../AuthContext.jsx'
+import { api } from '../api.js'
 import AgentChat from './AgentChat.jsx'
 
 const ROLE_LABELS = {
@@ -17,6 +18,14 @@ export default function Layout() {
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
+  const [newAlertCount, setNewAlertCount] = useState(0)
+
+  useEffect(() => {
+    const fetchCount = () => { api('alerts.countNew').then(r => setNewAlertCount(r.count || 0)).catch(() => {}) }
+    fetchCount()
+    const interval = setInterval(fetchCount, 60000)
+    return () => clearInterval(interval)
+  }, [])
 
   const handleLogout = () => { logout(); navigate('/login'); }
 
@@ -42,7 +51,7 @@ export default function Layout() {
           <NavLink to="/expenses">&#128200; Разходи</NavLink>
           <NavLink to="/reports">&#128203; Отчети</NavLink>
           <NavLink to="/logistics">&#128666; Логистика</NavLink>
-          <NavLink to="/alerts">&#128276; Аларми</NavLink>
+          <NavLink to="/alerts">&#128276; Аларми{newAlertCount > 0 && <span className="nav-badge">{newAlertCount > 99 ? '99+' : newAlertCount}</span>}</NavLink>
           <NavLink to="/halls">&#127970; Халета</NavLink>
           <NavLink to="/biosecurity">&#128737; Биосигурност</NavLink>
           <NavLink to="/bonuses">&#127942; Бонуси</NavLink>

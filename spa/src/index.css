@@ -28,6 +28,7 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
 .sidebar-nav a { display: flex; align-items: center; gap: 12px; padding: 12px 20px; color: rgba(255,255,255,0.8); transition: all 0.2s; font-size: 14px; }
 .sidebar-nav a:hover, .sidebar-nav a.active { background: rgba(255,255,255,0.12); color: #fff; }
 .sidebar-nav a.active { border-left: 3px solid #fff; }
+.nav-badge { background: var(--danger); color: #fff; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 10px; margin-left: auto; min-width: 18px; text-align: center; line-height: 14px; }
 .sidebar-user { position: absolute; bottom: 0; left: 0; right: 0; padding: 16px 20px; border-top: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); }
 .sidebar-user .user-name { font-weight: 600; font-size: 13px; }
 .sidebar-user .user-role { font-size: 11px; opacity: 0.7; }

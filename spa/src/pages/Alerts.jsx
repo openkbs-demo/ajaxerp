@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api.js'
-import { useAuth } from '../AuthContext.jsx'
 
 function fmtDate(d) {
   if (!d) return '-'
@@ -9,18 +8,17 @@ function fmtDate(d) {
   return `${String(dt.getDate()).padStart(2,'0')}.${String(dt.getMonth()+1).padStart(2,'0')}.${dt.getFullYear()} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`
 }
 
+const STATUS_BG = { new: 'Нова', in_progress: 'В обработка', closed: 'Приключена' }
+const STATUS_BADGE = { new: 'red', in_progress: 'yellow', closed: 'green' }
+
 export default function Alerts() {
-  const { user } = useAuth()
   const [alerts, setAlerts] = useState([])
   const [loading, setLoading] = useState(true)
-  const [showAck, setShowAck] = useState(false)
-  const [filter, setFilter] = useState('unacked')
-  const [ackNote, setAckNote] = useState('')
-  const [ackId, setAckId] = useState(null)
+  const [filter, setFilter] = useState('new')
 
   const load = () => {
     setLoading(true)
-    const params = filter === 'unacked' ? { acknowledged: false } : filter === 'acked' ? { acknowledged: true } : {}
+    const params = filter === 'all' ? {} : { status: filter }
     api('alerts.list', { ...params, limit: 100 })
       .then(r => setAlerts(r.alerts))
       .catch(console.error)
@@ -28,17 +26,6 @@ export default function Alerts() {
   }
 
   useEffect(() => { load() }, [filter])
-
-  const acknowledge = async () => {
-    if (!ackId) return
-    try {
-      await api('alerts.acknowledge', { id: ackId, acknowledged_by: user?.id, notes: ackNote })
-      setShowAck(false)
-      setAckNote('')
-      setAckId(null)
-      load()
-    } catch (e) { alert(e.message) }
-  }
 
   const recalcKPI = async () => {
     try {
@@ -57,8 +44,9 @@ export default function Alerts() {
 
       <div className="filters">
         <select value={filter} onChange={e => setFilter(e.target.value)}>
-          <option value="unacked">Непотвърдени</option>
-          <option value="acked">Потвърдени</option>
+          <option value="new">Нови</option>
+          <option value="in_progress">В обработка</option>
+          <option value="closed">Приключени</option>
           <option value="all">Всички</option>
         </select>
       </div>
@@ -66,7 +54,7 @@ export default function Alerts() {
       <div className="card">
         {loading ? <div className="loading">Зареждане...</div> : alerts.length === 0 ? (
           <p style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: 20 }}>
-            {filter === 'unacked' ? 'Няма непотвърдени аларми.' : 'Няма аларми.'}
+            {filter === 'new' ? 'Няма нови аларми.' : 'Няма аларми.'}
           </p>
         ) : (
           alerts.map(a => {
@@ -90,43 +78,23 @@ export default function Alerts() {
                     {a.severity === 'critical' ? 'КРИТИЧНА' : a.severity === 'warning' ? 'ПРЕДУПРЕЖДЕНИЕ' : 'ИНФО'}
                   </span>
                   <span className="badge grey">{a.category}</span>
+                  <span className={`badge ${STATUS_BADGE[a.status]}`}>{STATUS_BG[a.status]}</span>
                 </div>
                 <div>{renderMsg()}</div>
-                {a.is_acknowledged && (
+                {a.status !== 'new' && a.acknowledged_by_name && (
                   <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>
-                    Потвърдена от: {a.acknowledged_by_name || `#${a.acknowledged_by}`} на {fmtDate(a.acknowledged_at)}
-                    {a.acknowledge_notes && ` | Бележка: ${a.acknowledge_notes}`}
+                    {a.acknowledged_by_name} — {fmtDate(a.acknowledged_at)}
                   </div>
                 )}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
                 <div className="alert-time">{fmtDate(a.created_at)}</div>
-                {!a.is_acknowledged && (
-                  <button className="btn btn-sm btn-outline" onClick={() => { setAckId(a.id); setShowAck(true) }}>
-                    Потвърди
-                  </button>
-                )}
+                <Link to={`/alerts/${a.id}`} className="btn btn-sm btn-outline">Детайли</Link>
               </div>
             </div>
           )})
         )}
       </div>
-
-      {showAck && (
-        <div className="modal-overlay" onClick={() => setShowAck(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <h2>Потвърждаване на аларма</h2>
-            <div className="form-group">
-              <label>Бележка (по избор)</label>
-              <textarea rows={3} value={ackNote} onChange={e => setAckNote(e.target.value)} placeholder="Предприети мерки..." />
-            </div>
-            <div className="modal-actions">
-              <button className="btn btn-outline" onClick={() => setShowAck(false)}>Отказ</button>
-              <button className="btn btn-primary" onClick={acknowledge}>Потвърди</button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   )
 }

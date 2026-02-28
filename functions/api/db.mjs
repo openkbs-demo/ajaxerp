@@ -231,6 +231,22 @@ async function runMigrations(db) {
       acknowledged_by INTEGER REFERENCES personnel(id),
       acknowledged_at TIMESTAMP,
       acknowledge_notes TEXT,
+      status VARCHAR(20) NOT NULL DEFAULT 'new',
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  // Migration: add status column to existing alerts tables
+  await db.query(`ALTER TABLE alerts ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'new'`);
+  await db.query(`UPDATE alerts SET status = 'closed' WHERE is_acknowledged = true AND status = 'new'`);
+
+  // Alert notes log
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS alert_notes (
+      id SERIAL PRIMARY KEY,
+      alert_id INTEGER NOT NULL REFERENCES alerts(id) ON DELETE CASCADE,
+      author_id INTEGER REFERENCES personnel(id),
+      note TEXT NOT NULL,
+      status_change VARCHAR(20),
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
@@ -658,6 +674,8 @@ async function runMigrations(db) {
   await db.query(`CREATE INDEX IF NOT EXISTS idx_litters_nurse_sow ON litters(nurse_sow_id)`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_alerts_ack ON alerts(is_acknowledged)`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_alerts_severity ON alerts(severity)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_alerts_status ON alerts(status)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_alert_notes_alert ON alert_notes(alert_id)`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_kpi_date ON kpi_snapshots(snapshot_date)`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_kpi_name ON kpi_snapshots(kpi_name)`);
 

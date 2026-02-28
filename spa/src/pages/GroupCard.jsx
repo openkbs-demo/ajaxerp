@@ -162,12 +162,13 @@ export default function GroupCard() {
             <h3>Произход (Генетика)</h3>
             {genetics.length > 0 ? (
               <table>
-                <thead><tr><th>Люпило #</th><th>Майка</th><th>Паритет</th><th>Родени живи</th><th>Отбити</th><th>Тегло отб.</th><th>Дата отб.</th></tr></thead>
+                <thead><tr><th>Люпило #</th><th>Майка</th><th>Кърмачка</th><th>Паритет</th><th>Родени живи</th><th>Отбити</th><th>Тегло отб.</th><th>Дата отб.</th></tr></thead>
                 <tbody>
                   {genetics.map(l => (
                     <tr key={l.id}>
                       <td>#{l.id}</td>
                       <td><Link to={`/animals/${l.birth_sow_id}`}><strong>{l.sow_ear_tag}</strong></Link></td>
+                      <td>{l.nurse_sow_id ? <Link to={`/animals/${l.nurse_sow_id}`}><strong>{l.nurse_ear_tag}</strong></Link> : '-'}</td>
                       <td>{l.parity_number}</td>
                       <td>{l.born_alive}</td>
                       <td>{l.weaned_count || '-'}</td>
