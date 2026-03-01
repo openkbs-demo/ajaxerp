@@ -11,10 +11,13 @@ export default function Feed() {
   const [components, setComponents] = useState([])
   const [inventory, setInventory] = useState([])
   const [batches, setBatches] = useState([])
+  const [purchases, setPurchases] = useState([])
   const [loading, setLoading] = useState(true)
   const [showProduce, setShowProduce] = useState(false)
+  const [showPurchase, setShowPurchase] = useState(false)
   const [showPrice, setShowPrice] = useState(null)
   const [produceForm, setProduceForm] = useState({ recipe_id: '', quantity_tons: '' })
+  const [purchaseForm, setPurchaseForm] = useState({ component_id: '', quantity_kg: '', price_per_ton: '', supplier: '', invoice_number: '', notes: '' })
   const [newPrice, setNewPrice] = useState('')
   const [editRecipe, setEditRecipe] = useState(null)
 
@@ -23,7 +26,8 @@ export default function Feed() {
       api('feed.recipes.list').then(r => setRecipes(r.recipes)),
       api('feed.components.list').then(r => setComponents(r.components)),
       api('feed.inventory').then(r => setInventory(r.inventory)),
-      api('feed.batches.list', {}).then(r => setBatches(r.batches))
+      api('feed.batches.list', {}).then(r => setBatches(r.batches)),
+      api('feed.purchases.list', {}).then(r => setPurchases(r.purchases)).catch(() => setPurchases([]))
     ]).catch(console.error).finally(() => setLoading(false))
   }
 
@@ -50,6 +54,25 @@ export default function Feed() {
       })
       setShowProduce(false)
       setProduceForm({ recipe_id: '', quantity_tons: '' })
+      reload()
+    } catch (err) { alert(err.message) }
+  }
+
+  const submitPurchase = async (e) => {
+    e.preventDefault()
+    try {
+      await api('feed.purchase', {
+        component_id: parseInt(purchaseForm.component_id),
+        quantity_kg: parseFloat(purchaseForm.quantity_kg),
+        price_per_ton: purchaseForm.price_per_ton ? parseFloat(purchaseForm.price_per_ton) : undefined,
+        supplier: purchaseForm.supplier || undefined,
+        invoice_number: purchaseForm.invoice_number || undefined,
+        notes: purchaseForm.notes || undefined,
+        received_by: user?.id,
+        purchase_date: purchaseForm.purchase_date || undefined
+      })
+      setShowPurchase(false)
+      setPurchaseForm({ component_id: '', quantity_kg: '', price_per_ton: '', supplier: '', invoice_number: '', notes: '' })
       reload()
     } catch (err) { alert(err.message) }
   }
@@ -109,6 +132,7 @@ export default function Feed() {
       <div className="page-header">
         <h1>Управление на фуражи</h1>
         <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-primary" onClick={() => setShowPurchase(true)}>+ Доставка</button>
           <button className="btn btn-primary" onClick={() => setShowProduce(true)}>+ Производство</button>
           <button className="btn btn-primary" onClick={openNewRecipe}>+ Нова рецепта</button>
         </div>
@@ -119,6 +143,7 @@ export default function Feed() {
         <div className={`tab ${tab === 'components' ? 'active' : ''}`} onClick={() => setTab('components')}>Суровини</div>
         <div className={`tab ${tab === 'inventory' ? 'active' : ''}`} onClick={() => setTab('inventory')}>Складова наличност</div>
         <div className={`tab ${tab === 'batches' ? 'active' : ''}`} onClick={() => setTab('batches')}>Производство</div>
+        <div className={`tab ${tab === 'purchases' ? 'active' : ''}`} onClick={() => setTab('purchases')}>Доставки</div>
       </div>
 
       {tab === 'recipes' && (
@@ -218,6 +243,85 @@ export default function Feed() {
               {batches.length === 0 && <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>Няма производствени партиди</td></tr>}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {tab === 'purchases' && (
+        <div className="card">
+          <h3>История на доставките</h3>
+          <table>
+            <thead><tr><th>Дата</th><th>Суровина</th><th>Количество</th><th>Цена/тон</th><th>Стойност</th><th>Доставчик</th><th>Фактура</th><th>Приел</th></tr></thead>
+            <tbody>
+              {purchases.map(p => (
+                <tr key={p.id}>
+                  <td>{new Date(p.purchase_date).toLocaleDateString('bg-BG')}</td>
+                  <td><strong>{p.component_name_bg || p.component_name}</strong></td>
+                  <td>{parseFloat(p.quantity_kg).toLocaleString('bg-BG')} кг</td>
+                  <td>{p.price_per_ton ? `€${parseFloat(p.price_per_ton).toFixed(2)}` : '-'}</td>
+                  <td>{p.total_amount_eur ? `€${parseFloat(p.total_amount_eur).toFixed(2)}` : '-'}</td>
+                  <td>{p.supplier || '-'}</td>
+                  <td>{p.invoice_number || '-'}</td>
+                  <td>{p.received_by_name || '-'}</td>
+                </tr>
+              ))}
+              {purchases.length === 0 && <tr><td colSpan={8} style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>Няма доставки</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Purchase modal */}
+      {showPurchase && (
+        <div className="modal-overlay" onClick={() => setShowPurchase(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <h2>Нова доставка на суровина</h2>
+            <form onSubmit={submitPurchase}>
+              <div className="form-group">
+                <label>Суровина</label>
+                <select value={purchaseForm.component_id} onChange={e => setPurchaseForm(f => ({ ...f, component_id: e.target.value }))} required>
+                  <option value="">-- Изберете суровина --</option>
+                  {components.map(c => <option key={c.id} value={c.id}>{c.name_bg || c.name} (наличност: {parseFloat(c.current_stock_kg).toLocaleString('bg-BG')} кг)</option>)}
+                </select>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Количество (кг)</label>
+                  <input type="number" step="0.1" min="0.1" value={purchaseForm.quantity_kg} onChange={e => setPurchaseForm(f => ({ ...f, quantity_kg: e.target.value }))} required />
+                </div>
+                <div className="form-group">
+                  <label>Цена за тон (EUR)</label>
+                  <input type="number" step="0.01" min="0" value={purchaseForm.price_per_ton} onChange={e => setPurchaseForm(f => ({ ...f, price_per_ton: e.target.value }))} placeholder="Оставете празно ако няма промяна" />
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Доставчик</label>
+                  <input value={purchaseForm.supplier} onChange={e => setPurchaseForm(f => ({ ...f, supplier: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label>Фактура №</label>
+                  <input value={purchaseForm.invoice_number} onChange={e => setPurchaseForm(f => ({ ...f, invoice_number: e.target.value }))} />
+                </div>
+              </div>
+              <div className="form-group">
+                <label>Дата на доставка</label>
+                <input type="date" value={purchaseForm.purchase_date || new Date().toISOString().split('T')[0]} onChange={e => setPurchaseForm(f => ({ ...f, purchase_date: e.target.value }))} />
+              </div>
+              <div className="form-group">
+                <label>Бележки</label>
+                <textarea rows={2} value={purchaseForm.notes} onChange={e => setPurchaseForm(f => ({ ...f, notes: e.target.value }))} />
+              </div>
+              {purchaseForm.quantity_kg && purchaseForm.price_per_ton && (
+                <p style={{ fontSize: 13, color: 'var(--primary)', fontWeight: 600, margin: '8px 0' }}>
+                  Стойност: €{(parseFloat(purchaseForm.price_per_ton) * parseFloat(purchaseForm.quantity_kg) / 1000).toFixed(2)}
+                </p>
+              )}
+              <div className="modal-actions">
+                <button type="button" className="btn btn-outline" onClick={() => setShowPurchase(false)}>Отказ</button>
+                <button type="submit" className="btn btn-primary">Запиши доставка</button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 

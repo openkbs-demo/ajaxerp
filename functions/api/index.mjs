@@ -145,6 +145,8 @@ export async function handler(event) {
     if (action === 'feed.produce') return await feedProduce(db, body);
     if (action === 'feed.inventory') return await feedInventory(db);
     if (action === 'feed.batches.list') return await feedBatchesList(db, body);
+    if (action === 'feed.purchase') return await feedPurchase(db, body);
+    if (action === 'feed.purchases.list') return await feedPurchasesList(db, body);
 
     // ─── KPI ──────────────────────────────────────────────────────────
     if (action === 'kpi.dashboard') return await kpiDashboard(db);
@@ -553,7 +555,7 @@ async function hallsUpdate(db, { id, name, biosecurity_zone, capacity, target_te
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function animalsRegister(db, { ear_tag, category, breed, date_of_birth, status, hall_id, notes }) {
-  const validCategories = ['gilt', 'sow', 'boar', 'suckling_piglet', 'weaner', 'finisher'];
+  const validCategories = ['gilt', 'sow', 'boar', 'suckling_piglet'];
   if (!validCategories.includes(category)) return err(400, `Невалидна категория. Валидни: ${validCategories.join(', ')}`);
 
   // Default status by category
@@ -1421,6 +1423,62 @@ async function feedBatchesList(db, { recipe_id, limit }) {
   q += ` LIMIT $${idx++}`; params.push(limit || 50);
   const result = await db.query(q, params);
   return ok({ batches: result.rows });
+}
+
+async function feedPurchase(db, { component_id, purchase_date, quantity_kg, price_per_ton, supplier, invoice_number, notes, received_by }) {
+  if (!component_id) return err(400, 'Суровината е задължителна');
+  if (!quantity_kg || quantity_kg <= 0) return err(400, 'Количеството трябва да е положително число');
+
+  const comp = await db.query('SELECT * FROM feed_components WHERE id = $1', [component_id]);
+  if (comp.rows.length === 0) return err(404, 'Суровината не е намерена');
+
+  const ppt = price_per_ton ? parseFloat(price_per_ton) : null;
+  const qtyKg = parseFloat(quantity_kg);
+  const totalEur = ppt ? (ppt * qtyKg / 1000) : null;
+
+  // Insert purchase record
+  await db.query(
+    `INSERT INTO feed_purchases (component_id, purchase_date, quantity_kg, price_per_ton, total_amount_eur, supplier, invoice_number, received_by, notes)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+    [component_id, purchase_date || new Date().toISOString().split('T')[0], qtyKg, ppt, totalEur, supplier || null, invoice_number || null, received_by || null, notes || null]
+  );
+
+  // Update stock
+  await db.query('UPDATE feed_components SET current_stock_kg = current_stock_kg + $1, updated_at = NOW() WHERE id = $2', [qtyKg, component_id]);
+
+  // Update price if provided
+  if (ppt && ppt !== parseFloat(comp.rows[0].price_per_ton)) {
+    await db.query('UPDATE feed_components SET price_per_ton = $1 WHERE id = $2', [ppt, component_id]);
+  }
+
+  // Create expense entry
+  if (totalEur) {
+    await db.query(
+      `INSERT INTO expense_entries (entry_date, month_key, category, subcategory, description, amount_eur, related_entity_type, created_by)
+       VALUES ($1, $2, 'feed', 'purchase', $3, $4, 'feed_purchase', $5)`,
+      [purchase_date || new Date().toISOString().split('T')[0],
+       (purchase_date || new Date().toISOString().split('T')[0]).substring(0, 7),
+       `Доставка: ${comp.rows[0].name_bg || comp.rows[0].name} — ${qtyKg} кг`,
+       totalEur, received_by || null]
+    );
+  }
+
+  return ok({ success: true });
+}
+
+async function feedPurchasesList(db, { component_id, limit }) {
+  let q = `SELECT fp.*, fc.name as component_name, fc.name_bg as component_name_bg, p.name as received_by_name
+           FROM feed_purchases fp
+           JOIN feed_components fc ON fc.id = fp.component_id
+           LEFT JOIN personnel p ON p.id = fp.received_by
+           WHERE 1=1`;
+  const params = [];
+  let idx = 1;
+  if (component_id) { q += ` AND fp.component_id = $${idx++}`; params.push(component_id); }
+  q += ' ORDER BY fp.purchase_date DESC, fp.created_at DESC';
+  q += ` LIMIT $${idx++}`; params.push(limit || 50);
+  const result = await db.query(q, params);
+  return ok({ purchases: result.rows });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -4997,7 +5055,7 @@ async function regulatoryGenerate(db, { document_type, from_date, to_date, dispa
     title = `ИАСРЖ Регистър — ${from_date} до ${to_date}`;
 
     // Initial state — count animals by category before start date
-    const categories = ['gilt', 'sow', 'boar', 'weaner', 'finisher'];
+    const categories = ['gilt', 'sow', 'boar', 'suckling_piglet'];
     const initial = {};
     for (const cat of categories) {
       const res = await db.query(`SELECT COUNT(*) FROM animals WHERE category = $1 AND entry_date < $2 AND (cull_date IS NULL OR cull_date >= $2)`, [cat, from_date]);
@@ -5112,7 +5170,7 @@ async function regulatoryExport(db, { id }) {
     rows.push(csvRow(['ЗДРАВЕН СТАТУС:', data.healthStatus?.certification]));
   } else if (d.document_type === 'animal_register') {
     rows.push(csvRow(['Категория', 'Начално', 'Крайно']));
-    for (const cat of ['gilt', 'sow', 'boar', 'weaner', 'finisher']) {
+    for (const cat of ['gilt', 'sow', 'boar', 'suckling_piglet']) {
       rows.push(csvRow([cat, data.initial?.[cat] || 0, data.final?.[cat] || 0]));
     }
     rows.push('');

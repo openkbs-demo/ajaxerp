@@ -202,6 +202,23 @@ async function runMigrations(db) {
     )
   `);
 
+  // Feed purchases / deliveries
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS feed_purchases (
+      id SERIAL PRIMARY KEY,
+      component_id INTEGER REFERENCES feed_components(id),
+      purchase_date DATE NOT NULL DEFAULT CURRENT_DATE,
+      quantity_kg DECIMAL(12,2) NOT NULL,
+      price_per_ton DECIMAL(10,2),
+      total_amount_eur DECIMAL(12,2),
+      supplier VARCHAR(255),
+      invoice_number VARCHAR(100),
+      received_by INTEGER REFERENCES personnel(id),
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+
   // KPI snapshots
   await db.query(`
     CREATE TABLE IF NOT EXISTS kpi_snapshots (

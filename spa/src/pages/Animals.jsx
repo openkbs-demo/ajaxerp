@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api.js'
 
-const CAT_BG = { gilt: 'Ремонтна', sow: 'Свиня майка', boar: 'Нерез', suckling_piglet: 'Бозайник', weaner: 'Подрастващо', finisher: 'Угояване' }
+const CAT_BG = { gilt: 'Ремонтна', sow: 'Свиня майка', boar: 'Нерез', suckling_piglet: 'Бозайник' }
 const STATUS_BG = {
   awaiting_breeding: 'Очаква заплождане', inseminated: 'Осеменена', pregnant_confirmed: 'Бременна',
   in_farrowing: 'В родилно', lactating: 'Лактираща', weaned_resting: 'Почивка',
