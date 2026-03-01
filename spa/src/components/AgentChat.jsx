@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { api } from '../api.js'
 import { useAuth } from '../AuthContext.jsx'
-import { Plus, Send, Mic, Square, ChevronUp } from 'lucide-react'
+import { Plus, Send, Mic, Square } from 'lucide-react'
 import './AgentChat.css'
 
 const MODES = [
@@ -131,33 +131,41 @@ export default function AgentChat({ isOpen, onClose }) {
   const [transcribing, setTranscribing] = useState(false)
   const [audioStream, setAudioStream] = useState(null)
   const [audioDevices, setAudioDevices] = useState([])
-  const [selectedDeviceId, setSelectedDeviceId] = useState('')
-  const [showDevicePicker, setShowDevicePicker] = useState(false)
+  const [selectedDeviceId, setSelectedDeviceId] = useState(() => localStorage.getItem('voice_device_id') || '')
   const messagesEnd = useRef(null)
   const textareaRef = useRef(null)
   const mediaRecorderRef = useRef(null)
   const audioChunksRef = useRef([])
+  const voiceSendRef = useRef(false)
 
   const scrollToBottom = useCallback(() => {
     messagesEnd.current?.scrollIntoView({ behavior: 'smooth' })
   }, [])
 
+  // Persist selected device
+  const handleDeviceChange = useCallback((deviceId) => {
+    setSelectedDeviceId(deviceId)
+    localStorage.setItem('voice_device_id', deviceId)
+  }, [])
+
   // Enumerate audio input devices
   const refreshDevices = useCallback(async () => {
     try {
-      // Need permission first to get device labels
       const tmpStream = await navigator.mediaDevices.getUserMedia({ audio: true })
       tmpStream.getTracks().forEach(t => t.stop())
       const devices = await navigator.mediaDevices.enumerateDevices()
       const inputs = devices.filter(d => d.kind === 'audioinput')
       setAudioDevices(inputs)
-      if (!selectedDeviceId && inputs.length > 0) {
-        setSelectedDeviceId(inputs[0].deviceId)
+      const saved = localStorage.getItem('voice_device_id')
+      if (saved && inputs.some(d => d.deviceId === saved)) {
+        setSelectedDeviceId(saved)
+      } else if (inputs.length > 0) {
+        handleDeviceChange(inputs[0].deviceId)
       }
     } catch (err) {
       console.error('[Voice] Cannot enumerate devices:', err)
     }
-  }, [selectedDeviceId])
+  }, [handleDeviceChange])
 
   // Auto-grow textarea
   useEffect(() => {
@@ -238,8 +246,25 @@ export default function AgentChat({ isOpen, onClose }) {
 
   const handleStartRecording = async () => {
     try {
-      const constraints = selectedDeviceId
-        ? { audio: { deviceId: { exact: selectedDeviceId } } }
+      // Refresh device list so the dropdown is populated
+      let devices = audioDevices
+      if (devices.length === 0) {
+        const tmpStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+        tmpStream.getTracks().forEach(t => t.stop())
+        const allDevices = await navigator.mediaDevices.enumerateDevices()
+        devices = allDevices.filter(d => d.kind === 'audioinput')
+        setAudioDevices(devices)
+        const saved = localStorage.getItem('voice_device_id')
+        if (saved && devices.some(d => d.deviceId === saved)) {
+          setSelectedDeviceId(saved)
+        } else if (devices.length > 0) {
+          handleDeviceChange(devices[0].deviceId)
+        }
+      }
+
+      const deviceId = selectedDeviceId || (devices.length > 0 ? devices[0].deviceId : null)
+      const constraints = deviceId
+        ? { audio: { deviceId: { exact: deviceId } } }
         : { audio: true }
       const stream = await navigator.mediaDevices.getUserMedia(constraints)
       setAudioStream(stream)
@@ -281,7 +306,28 @@ export default function AgentChat({ isOpen, onClose }) {
           const result = await api('voice.transcribe', { key })
 
           if (result.text && result.text.trim()) {
-            setInput(prev => prev ? prev + ' ' + result.text.trim() : result.text.trim())
+            const text = result.text.trim()
+            if (voiceSendRef.current) {
+              // Send directly as message
+              setMessages(prev => [...prev, { role: 'user', content: text }])
+              setTranscribing(false)
+              setLoading(true)
+              try {
+                const data = await api('agent.chat', {
+                  session_id: sessionStorage.getItem('agent_session_id'),
+                  personnel_id: user?.id,
+                  message: text,
+                  mode
+                })
+                setMessages(prev => [...prev, { role: 'assistant', content: data.response, tool_calls: data.tool_calls || [] }])
+              } catch (e) {
+                setMessages(prev => [...prev, { role: 'assistant', content: `Грешка: ${e.message}` }])
+              } finally {
+                setLoading(false)
+              }
+              return
+            }
+            setInput(prev => prev ? prev + ' ' + text : text)
             textareaRef.current?.focus()
           }
         } catch (err) {
@@ -298,7 +344,8 @@ export default function AgentChat({ isOpen, onClose }) {
     }
   }
 
-  const handleStopRecording = () => {
+  const handleStopRecording = (sendDirectly = false) => {
+    voiceSendRef.current = sendDirectly
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop()
     }
@@ -306,7 +353,7 @@ export default function AgentChat({ isOpen, onClose }) {
   }
 
   const handleMicClick = () => {
-    if (recording) handleStopRecording()
+    if (recording) handleStopRecording(false)
     else handleStartRecording()
   }
 
@@ -414,11 +461,43 @@ export default function AgentChat({ isOpen, onClose }) {
         <div ref={messagesEnd} />
       </div>
 
-      {recording && (
-        <div className="voice-recording-bar">
-          <div className="voice-recording-dot" />
-          <VoiceWave stream={audioStream} />
-          <span className="voice-recording-label">Запис...</span>
+      {(recording || transcribing) && (
+        <div className="voice-panel">
+          <div className="voice-panel-header">
+            <div className="voice-recording-dot" />
+            <span className="voice-panel-title">{transcribing ? 'Разпознаване...' : 'Записване'}</span>
+          </div>
+          {recording && (
+            <>
+              <div className="voice-device-row">
+                <Mic size={12} />
+                <select
+                  className="voice-device-select"
+                  value={selectedDeviceId}
+                  onChange={e => handleDeviceChange(e.target.value)}
+                >
+                  {audioDevices.map(d => (
+                    <option key={d.deviceId} value={d.deviceId}>
+                      {d.label || `Микрофон ${d.deviceId.slice(0, 5)}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <VoiceWave stream={audioStream} />
+              <div className="voice-panel-hint">Говорете ясно. Натиснете бутон когато приключите.</div>
+              <div className="voice-panel-actions">
+                <button className="voice-panel-stop" onClick={() => handleStopRecording(false)}>
+                  <Square size={14} /> Стоп
+                </button>
+                <button className="voice-panel-send" onClick={() => handleStopRecording(true)}>
+                  <Send size={14} /> Изпрати
+                </button>
+              </div>
+            </>
+          )}
+          {transcribing && (
+            <div className="voice-panel-hint">Моля, изчакайте...</div>
+          )}
         </div>
       )}
 
@@ -432,38 +511,14 @@ export default function AgentChat({ isOpen, onClose }) {
           placeholder={transcribing ? 'Разпознаване на глас...' : mode === 'production' ? 'Напр. Какви са текущите KPI?' : 'Напр. Колко свине-майки имаме?'}
           disabled={loading || transcribing}
         />
-        <div className="agent-mic-wrap">
-          <button
-            className={`agent-mic-btn ${recording ? 'recording' : ''}`}
-            onClick={handleMicClick}
-            disabled={loading || transcribing}
-            title={recording ? 'Спри записа' : 'Запиши глас'}
-          >
-            {recording ? <Square size={16} /> : <Mic size={16} />}
-          </button>
-          <button
-            className="agent-mic-picker-btn"
-            onClick={() => refreshDevices().then(() => setShowDevicePicker(p => !p))}
-            disabled={loading || transcribing || recording}
-            title="Избор на микрофон"
-          >
-            <ChevronUp size={10} />
-          </button>
-          {showDevicePicker && audioDevices.length > 0 && (
-            <div className="device-picker">
-              <div className="device-picker-title">Микрофон</div>
-              {audioDevices.map(d => (
-                <button
-                  key={d.deviceId}
-                  className={`device-picker-item ${d.deviceId === selectedDeviceId ? 'active' : ''}`}
-                  onClick={() => { setSelectedDeviceId(d.deviceId); setShowDevicePicker(false) }}
-                >
-                  {d.label || `Микрофон ${d.deviceId.slice(0, 5)}`}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        <button
+          className={`agent-mic-btn ${recording ? 'recording' : ''}`}
+          onClick={handleMicClick}
+          disabled={loading || transcribing}
+          title={recording ? 'Спри записа' : 'Запиши глас'}
+        >
+          {recording ? <Square size={16} /> : <Mic size={16} />}
+        </button>
         <button onClick={handleSend} disabled={loading || !input.trim() || transcribing}><Send size={16} /></button>
       </div>
     </div>

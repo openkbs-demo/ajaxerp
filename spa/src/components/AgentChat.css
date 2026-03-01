@@ -438,77 +438,32 @@
   50% { box-shadow: 0 0 0 8px rgba(198, 40, 40, 0); }
 }
 
-/* Mic wrapper & device picker */
-.agent-mic-wrap {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-}
-.agent-mic-picker-btn {
-  background: none !important;
-  border: 1px solid var(--border) !important;
-  color: var(--text-secondary) !important;
-  border-radius: 4px !important;
-  padding: 1px 8px !important;
-  cursor: pointer;
-  font-size: 10px;
-  line-height: 1;
+/* Device select row (inside recording panel) */
+.voice-device-row {
   display: flex;
   align-items: center;
-  justify-content: center;
-}
-.agent-mic-picker-btn:hover {
-  background: #f5f5f5 !important;
-  color: var(--primary) !important;
-  border-color: var(--primary) !important;
-}
-.agent-mic-picker-btn:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-.device-picker {
-  position: absolute;
-  bottom: 100%;
-  right: 0;
-  margin-bottom: 6px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
-  min-width: 220px;
-  max-width: 300px;
-  z-index: 20;
-  overflow: hidden;
-}
-.device-picker-title {
-  padding: 8px 12px;
-  font-size: 11px;
-  font-weight: 600;
+  gap: 6px;
+  padding: 4px 8px;
+  background: rgba(198, 40, 40, 0.06);
+  border-radius: 6px;
   color: var(--text-secondary);
-  text-transform: uppercase;
-  border-bottom: 1px solid var(--border);
 }
-.device-picker-item {
-  display: block;
-  width: 100%;
-  padding: 8px 12px;
+.voice-device-row svg {
+  flex-shrink: 0;
+}
+.voice-device-select {
+  flex: 1;
   border: none;
   background: none;
-  text-align: left;
-  font-size: 12px;
-  color: var(--text);
+  font-size: 11px;
+  color: var(--text-secondary);
   cursor: pointer;
-  transition: background 0.15s;
+  outline: none;
+  padding: 2px 0;
 }
-.device-picker-item:hover {
-  background: #f5f5f5;
-}
-.device-picker-item.active {
-  background: #e8f5e9;
-  font-weight: 600;
-  color: var(--primary-dark);
+.voice-device-select:hover,
+.voice-device-select:focus {
+  color: var(--text);
 }
 
 .agent-empty {
@@ -518,60 +473,79 @@
   font-size: 13px;
 }
 
-/* Voice recording bar */
-.voice-recording-bar {
+/* Voice recording panel */
+.voice-panel {
+  border-top: 1px solid #ffcdd2;
+  background: #fff5f5;
+  padding: 12px 16px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.voice-panel-header {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 12px;
-  background: #fff5f5;
-  border-top: 1px solid #ffcdd2;
-  flex-shrink: 0;
 }
 .voice-recording-dot {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background: #c62828;
   animation: rec-blink 1s ease-in-out infinite;
+  flex-shrink: 0;
 }
 @keyframes rec-blink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.3; }
 }
+.voice-panel-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #c62828;
+}
 .voice-wave {
-  flex: 1;
-  height: 32px;
+  width: 100%;
+  height: 48px;
   display: block;
 }
-.voice-recording-label {
-  font-size: 12px;
-  color: #c62828;
-  font-weight: 500;
+.voice-panel-hint {
+  font-size: 11px;
+  color: #b71c1c;
+  text-align: center;
 }
-
-/* Voice debug bar */
-.voice-debug-bar {
+.voice-panel-actions {
+  display: flex;
+  gap: 8px;
+  align-self: center;
+}
+.voice-panel-stop,
+.voice-panel-send {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 12px;
-  background: #fff8e1;
-  border-top: 1px solid #ffe082;
-  font-size: 11px;
-  flex-shrink: 0;
-}
-.voice-debug-bar a {
-  color: #f57f17;
-  text-decoration: underline;
-}
-.voice-debug-bar button {
-  background: none;
+  gap: 6px;
+  padding: 8px 18px;
+  border-radius: 8px;
   border: none;
-  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
-  font-size: 12px;
-  padding: 2px 6px;
+  transition: background 0.2s;
+}
+.voice-panel-stop {
+  background: #e0e0e0;
+  color: #333;
+}
+.voice-panel-stop:hover {
+  background: #bdbdbd;
+}
+.voice-panel-send {
+  background: #c62828;
+  color: #fff;
+}
+.voice-panel-send:hover {
+  background: #b71c1c;
 }
 
 @media (max-width: 768px) {
