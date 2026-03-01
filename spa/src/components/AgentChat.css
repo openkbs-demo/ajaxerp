@@ -586,6 +586,9 @@
   background: #b71c1c;
 }
 
+/* Hide FAB when chat is fullscreen (expanded or mobile) */
+.agent-fab.agent-fab-hidden { display: none; }
+
 @media (max-width: 768px) {
   .agent-chat,
   .agent-chat.agent-chat-expanded {
@@ -603,4 +606,5 @@
     height: 48px;
     font-size: 20px;
   }
+  .agent-fab.open { display: none; }
 }

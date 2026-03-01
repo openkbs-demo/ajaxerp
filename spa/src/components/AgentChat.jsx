@@ -116,7 +116,7 @@ function VoiceWave({ stream }) {
   return <canvas ref={canvasRef} className="voice-wave" width={200} height={32} />
 }
 
-export default function AgentChat({ isOpen, onClose }) {
+export default function AgentChat({ isOpen, onClose, onExpandedChange }) {
   const { user } = useAuth()
   const [mode, setMode] = useState('production')
   const [messages, setMessages] = useState([])
@@ -392,7 +392,7 @@ export default function AgentChat({ isOpen, onClose }) {
           <button onClick={() => setHistoryOpen(h => !h)} title="История">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           </button>
-          <button onClick={() => setExpanded(e => !e)} title={expanded ? 'Компактен изглед' : 'Цял екран'}>
+          <button onClick={() => setExpanded(e => { const next = !e; onExpandedChange?.(next); return next; })} title={expanded ? 'Компактен изглед' : 'Цял екран'}>
             {expanded
               ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
               : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
