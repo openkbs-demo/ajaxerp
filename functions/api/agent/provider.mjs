@@ -37,7 +37,7 @@ export async function getModel(db) {
   if (provider === 'openai') {
     const { createOpenAI } = await import('@ai-sdk/openai');
     const openai = createOpenAI({ apiKey });
-    return openai(modelId || 'gpt-4o');
+    return openai(modelId || 'gpt-5.2');
   }
 
   throw new Error(`Неподдържан AI доставчик: ${provider}. Поддържани: Anthropic, OpenAI.`);

@@ -377,9 +377,6 @@ export default function AgentChat({ isOpen, onClose }) {
       <div className="agent-chat-header">
         <h4>AI Асистент</h4>
         <div className="agent-chat-header-actions">
-          <button onClick={handleNewSession} title="Нов разговор">
-            <Plus size={14} />
-          </button>
           <button onClick={() => setHistoryOpen(h => !h)} title="История">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           </button>
@@ -502,6 +499,14 @@ export default function AgentChat({ isOpen, onClose }) {
       )}
 
       <div className="agent-input-area">
+        <button
+          className={`agent-mic-btn ${recording ? 'recording' : ''}`}
+          onClick={handleMicClick}
+          disabled={loading || transcribing}
+          title={recording ? 'Спри записа' : 'Запиши глас'}
+        >
+          {recording ? <Square size={16} /> : <Mic size={16} />}
+        </button>
         <textarea
           ref={textareaRef}
           rows={1}
@@ -511,14 +516,7 @@ export default function AgentChat({ isOpen, onClose }) {
           placeholder={transcribing ? 'Разпознаване на глас...' : mode === 'production' ? 'Напр. Какви са текущите KPI?' : 'Напр. Колко свине-майки имаме?'}
           disabled={loading || transcribing}
         />
-        <button
-          className={`agent-mic-btn ${recording ? 'recording' : ''}`}
-          onClick={handleMicClick}
-          disabled={loading || transcribing}
-          title={recording ? 'Спри записа' : 'Запиши глас'}
-        >
-          {recording ? <Square size={16} /> : <Mic size={16} />}
-        </button>
+        <button className="agent-newchat-btn" onClick={handleNewSession} title="Нов разговор"><Plus size={16} /></button>
         <button onClick={handleSend} disabled={loading || !input.trim() || transcribing}><Send size={16} /></button>
       </div>
     </div>

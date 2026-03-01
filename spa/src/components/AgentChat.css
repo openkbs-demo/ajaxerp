@@ -414,6 +414,19 @@
 .agent-input-area button:hover { background: var(--primary-dark); }
 .agent-input-area button:disabled { opacity: 0.5; cursor: not-allowed; }
 
+/* New chat button (next to send) */
+.agent-newchat-btn {
+  background: none !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text-secondary) !important;
+  transition: all 0.2s;
+}
+.agent-newchat-btn:hover {
+  background: #f5f5f5 !important;
+  color: var(--primary) !important;
+  border-color: var(--primary) !important;
+}
+
 /* Microphone / Voice recording */
 .agent-mic-btn {
   background: none !important;

@@ -13,7 +13,7 @@
       "name": "api",
       "runtime": "nodejs24.x",
       "memory": 512,
-      "timeout": 30
+      "timeout": 90
     }
   ],
   "site": "./site"

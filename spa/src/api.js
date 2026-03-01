@@ -6,7 +6,13 @@ export async function api(action, data = {}) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, ...data })
   });
-  const json = await res.json();
+  const text = await res.text();
+  let json;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    throw new Error(res.ok ? text : `Сървърна грешка (${res.status})`);
+  }
   if (!res.ok) throw new Error(json.error || 'Грешка в API');
   return json;
 }

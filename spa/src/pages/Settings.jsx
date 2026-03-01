@@ -26,11 +26,9 @@ const AI_MODELS = {
     { value: 'claude-opus-4-5-20251101', label: 'Claude Opus 4.5 — $5/$25 за MTok' },
   ],
   openai: [
-    { value: 'gpt-4o', label: 'GPT-4o — $2.50/$10 за MTok (Препоръчан)', default: true },
-    { value: 'gpt-4o-mini', label: 'GPT-4o mini — $0.15/$0.60 за MTok (Най-бърз)' },
-    { value: 'o3', label: 'o3 — $10/$40 за MTok (Reasoning)' },
-    { value: 'o4-mini', label: 'o4-mini — $1.10/$4.40 за MTok (Reasoning бърз)' },
-    { value: 'gpt-4.1', label: 'GPT-4.1 — $2/$8 за MTok (Coding)' },
+    { value: 'gpt-5.2', label: 'GPT-5.2 — $1.75/$14 за MTok (Препоръчан)', default: true },
+    { value: 'gpt-5-mini', label: 'GPT-5 mini — $0.25/$2 за MTok (Бърз)' },
+    { value: 'gpt-5-nano', label: 'GPT-5 nano — $0.05/$0.40 за MTok (Най-бърз)' },
   ]
 }
 
