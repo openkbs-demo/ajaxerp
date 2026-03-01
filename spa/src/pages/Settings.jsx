@@ -13,7 +13,8 @@ const ROLE_LABELS = {
 const ROLES = Object.keys(ROLE_LABELS)
 
 const AI_PROVIDERS = [
-  { value: 'anthropic', label: 'Anthropic (Claude)' }
+  { value: 'anthropic', label: 'Anthropic (Claude)' },
+  { value: 'openai', label: 'OpenAI (GPT)' }
 ]
 
 const AI_MODELS = {
@@ -23,6 +24,13 @@ const AI_MODELS = {
     { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5 — $1/$5 за MTok (Най-бърз)' },
     { value: 'claude-sonnet-4-5-20250929', label: 'Claude Sonnet 4.5 — $3/$15 за MTok' },
     { value: 'claude-opus-4-5-20251101', label: 'Claude Opus 4.5 — $5/$25 за MTok' },
+  ],
+  openai: [
+    { value: 'gpt-4o', label: 'GPT-4o — $2.50/$10 за MTok (Препоръчан)', default: true },
+    { value: 'gpt-4o-mini', label: 'GPT-4o mini — $0.15/$0.60 за MTok (Най-бърз)' },
+    { value: 'o3', label: 'o3 — $10/$40 за MTok (Reasoning)' },
+    { value: 'o4-mini', label: 'o4-mini — $1.10/$4.40 за MTok (Reasoning бърз)' },
+    { value: 'gpt-4.1', label: 'GPT-4.1 — $2/$8 за MTok (Coding)' },
   ]
 }
 
@@ -43,10 +51,13 @@ export default function Settings() {
   // AI settings state
   const [aiProvider, setAiProvider] = useState('anthropic')
   const [aiModel, setAiModel] = useState('claude-sonnet-4-6')
-  const [aiApiKey, setAiApiKey] = useState('')
+  const [anthropicKey, setAnthropicKey] = useState('')
+  const [showAnthropicKey, setShowAnthropicKey] = useState(false)
+  const [openaiKey, setOpenaiKey] = useState('')
+  const [showOpenaiKey, setShowOpenaiKey] = useState(false)
   const [aiMsg, setAiMsg] = useState(null)
   const [aiLoading, setAiLoading] = useState(false)
-  const [showKey, setShowKey] = useState(false)
+  const [siteHostname, setSiteHostname] = useState('')
 
   const loadPersonnel = useCallback(async () => {
     try {
@@ -61,7 +72,9 @@ export default function Settings() {
       const s = res.settings || {}
       if (s.ai_provider) setAiProvider(s.ai_provider)
       if (s.ai_model) setAiModel(s.ai_model)
-      if (s.ai_api_key) setAiApiKey(s.ai_api_key)
+      if (s.anthropic_api_key) setAnthropicKey(s.anthropic_api_key)
+      if (s.openai_api_key) setOpenaiKey(s.openai_api_key)
+      if (s.site_hostname) setSiteHostname(s.site_hostname)
     } catch {}
   }, [])
 
@@ -131,7 +144,7 @@ export default function Settings() {
 
       <div className="tabs">
         <div className={`tab ${tab === 'users' ? 'active' : ''}`} onClick={() => setTab('users')}>Потребители</div>
-        <div className={`tab ${tab === 'ai' ? 'active' : ''}`} onClick={() => setTab('ai')}>AI Асистент</div>
+        <div className={`tab ${tab === 'ai' ? 'active' : ''}`} onClick={() => setTab('ai')}>AI Настройки</div>
         <div className={`tab ${tab === 'db' ? 'active' : ''}`} onClick={() => setTab('db')}>База данни</div>
       </div>
 
@@ -249,9 +262,9 @@ export default function Settings() {
 
       {tab === 'ai' && (
         <div className="card">
-          <h3>AI Асистент — Конфигурация</h3>
+          <h3>AI Настройки</h3>
           <p style={{ color: '#666', fontSize: 13, margin: '8px 0 16px' }}>
-            Настройки за AI агента — доставчик, модел и API ключ. Тези данни се пазят при нулиране на базата.
+            Настройки за AI агента — доставчик, модел, API ключове и гласово управление. Тези данни се пазят при нулиране на базата.
           </p>
 
           {aiMsg && (
@@ -276,21 +289,52 @@ export default function Settings() {
             </div>
 
             <div>
-              <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 13 }}>API Ключ</label>
+              <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 13 }}>Anthropic API Ключ</label>
               <div style={{ display: 'flex', gap: 8 }}>
                 <input
-                  type={showKey ? 'text' : 'password'}
-                  value={aiApiKey}
-                  onChange={e => setAiApiKey(e.target.value)}
+                  type={showAnthropicKey ? 'text' : 'password'}
+                  value={anthropicKey}
+                  onChange={e => setAnthropicKey(e.target.value)}
                   placeholder="sk-ant-..."
                   style={{ flex: 1 }}
                 />
-                <button className="btn btn-outline btn-sm" onClick={() => setShowKey(!showKey)} style={{ whiteSpace: 'nowrap' }}>
-                  {showKey ? 'Скрий' : 'Покажи'}
+                <button className="btn btn-outline btn-sm" onClick={() => setShowAnthropicKey(!showAnthropicKey)} style={{ whiteSpace: 'nowrap' }}>
+                  {showAnthropicKey ? 'Скрий' : 'Покажи'}
                 </button>
               </div>
               <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
-                Вземете ключ от <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">console.anthropic.com</a>
+                <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">console.anthropic.com</a>
+              </div>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 13 }}>OpenAI API Ключ</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  type={showOpenaiKey ? 'text' : 'password'}
+                  value={openaiKey}
+                  onChange={e => setOpenaiKey(e.target.value)}
+                  placeholder="sk-..."
+                  style={{ flex: 1 }}
+                />
+                <button className="btn btn-outline btn-sm" onClick={() => setShowOpenaiKey(!showOpenaiKey)} style={{ whiteSpace: 'nowrap' }}>
+                  {showOpenaiKey ? 'Скрий' : 'Покажи'}
+                </button>
+              </div>
+              <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
+                <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer">platform.openai.com</a> — използва се и за гласово разпознаване
+              </div>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 13 }}>Hostname на сайта</label>
+              <input
+                value={siteHostname}
+                onChange={e => setSiteHostname(e.target.value)}
+                placeholder="erp.example.com"
+              />
+              <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
+                Използва се за генериране на медийни URL-и (напр. https://hostname/media/...).
               </div>
             </div>
           </div>
@@ -302,7 +346,9 @@ export default function Settings() {
               try {
                 await api('settings.set', { key: 'ai_provider', value: aiProvider })
                 await api('settings.set', { key: 'ai_model', value: aiModel })
-                await api('settings.set', { key: 'ai_api_key', value: aiApiKey })
+                await api('settings.set', { key: 'anthropic_api_key', value: anthropicKey })
+                await api('settings.set', { key: 'openai_api_key', value: openaiKey })
+                await api('settings.set', { key: 'site_hostname', value: siteHostname })
                 setAiMsg({ ok: true, text: 'AI настройките са запазени.' })
               } catch (e) {
                 setAiMsg({ ok: false, text: e.message })

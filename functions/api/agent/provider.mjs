@@ -4,7 +4,7 @@
 
 async function getSettings(db) {
   const result = await db.query(
-    `SELECT key, value FROM app_settings WHERE key IN ('ai_provider', 'ai_model', 'ai_api_key')`
+    `SELECT key, value FROM app_settings WHERE key IN ('ai_provider', 'ai_model', 'anthropic_api_key', 'openai_api_key')`
   );
   const settings = {};
   for (const row of result.rows) settings[row.key] = row.value;
@@ -15,11 +15,17 @@ export async function getModel(db) {
   const s = await getSettings(db);
 
   const provider = (s.ai_provider || process.env.AI_PROVIDER || 'anthropic').toLowerCase();
-  const apiKey = s.ai_api_key || process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY || process.env.GOOGLE_API_KEY;
   const modelId = s.ai_model || process.env.AI_MODEL;
 
+  let apiKey;
+  if (provider === 'openai') {
+    apiKey = s.openai_api_key || process.env.OPENAI_API_KEY;
+  } else {
+    apiKey = s.anthropic_api_key || process.env.ANTHROPIC_API_KEY;
+  }
+
   if (!apiKey) {
-    throw new Error('AI API ключ не е конфигуриран. Моля, добавете го от Настройки → AI Асистент.');
+    throw new Error('AI API ключ не е конфигуриран. Моля, добавете го от Настройки → AI Настройки.');
   }
 
   if (provider === 'anthropic') {
@@ -28,5 +34,24 @@ export async function getModel(db) {
     return anthropic(modelId || 'claude-sonnet-4-6');
   }
 
-  throw new Error(`Неподдържан AI доставчик: ${provider}. В момента се поддържа само Anthropic.`);
+  if (provider === 'openai') {
+    const { createOpenAI } = await import('@ai-sdk/openai');
+    const openai = createOpenAI({ apiKey });
+    return openai(modelId || 'gpt-4o');
+  }
+
+  throw new Error(`Неподдържан AI доставчик: ${provider}. Поддържани: Anthropic, OpenAI.`);
+}
+
+/**
+ * Returns the OpenAI API key for Whisper / voice services.
+ */
+export async function getOpenAIKey(db) {
+  const s = await getSettings(db);
+  const key = s.openai_api_key || process.env.OPENAI_API_KEY;
+
+  if (!key) {
+    throw new Error('OpenAI API ключ не е конфигуриран. Нужен е за гласово разпознаване. Добавете го от Настройки → AI Настройки.');
+  }
+  return key;
 }

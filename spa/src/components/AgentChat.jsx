@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { api } from '../api.js'
 import { useAuth } from '../AuthContext.jsx'
-import { Plus, Send } from 'lucide-react'
+import { Plus, Send, Mic, Square, ChevronUp } from 'lucide-react'
 import './AgentChat.css'
 
 const MODES = [
@@ -66,6 +66,56 @@ function ToolCallIcons({ toolCalls }) {
   )
 }
 
+function VoiceWave({ stream }) {
+  const canvasRef = useRef(null)
+  const animRef = useRef(null)
+
+  useEffect(() => {
+    if (!stream) return
+    const ctx = new AudioContext()
+    const src = ctx.createMediaStreamSource(stream)
+    const analyser = ctx.createAnalyser()
+    analyser.fftSize = 64
+    src.connect(analyser)
+    const data = new Uint8Array(analyser.frequencyBinCount)
+
+    const draw = () => {
+      const canvas = canvasRef.current
+      if (!canvas) return
+      const c = canvas.getContext('2d')
+      analyser.getByteFrequencyData(data)
+      const w = canvas.width
+      const h = canvas.height
+      c.clearRect(0, 0, w, h)
+
+      const bars = 24
+      const barW = Math.max(2, (w / bars) - 2)
+      const gap = (w - bars * barW) / (bars + 1)
+
+      for (let i = 0; i < bars; i++) {
+        const idx = Math.floor(i * data.length / bars)
+        const val = data[idx] / 255
+        const barH = Math.max(2, val * h * 0.9)
+        const x = gap + i * (barW + gap)
+        const y = (h - barH) / 2
+        c.fillStyle = `rgba(198, 40, 40, ${0.4 + val * 0.6})`
+        c.beginPath()
+        c.roundRect(x, y, barW, barH, 1)
+        c.fill()
+      }
+      animRef.current = requestAnimationFrame(draw)
+    }
+    draw()
+
+    return () => {
+      cancelAnimationFrame(animRef.current)
+      ctx.close()
+    }
+  }, [stream])
+
+  return <canvas ref={canvasRef} className="voice-wave" width={200} height={32} />
+}
+
 export default function AgentChat({ isOpen, onClose }) {
   const { user } = useAuth()
   const [mode, setMode] = useState('production')
@@ -77,12 +127,45 @@ export default function AgentChat({ isOpen, onClose }) {
   const [historyOpen, setHistoryOpen] = useState(false)
   const [sessions, setSessions] = useState([])
   const [sessionsLoading, setSessionsLoading] = useState(false)
+  const [recording, setRecording] = useState(false)
+  const [transcribing, setTranscribing] = useState(false)
+  const [audioStream, setAudioStream] = useState(null)
+  const [audioDevices, setAudioDevices] = useState([])
+  const [selectedDeviceId, setSelectedDeviceId] = useState('')
+  const [showDevicePicker, setShowDevicePicker] = useState(false)
   const messagesEnd = useRef(null)
   const textareaRef = useRef(null)
+  const mediaRecorderRef = useRef(null)
+  const audioChunksRef = useRef([])
 
   const scrollToBottom = useCallback(() => {
     messagesEnd.current?.scrollIntoView({ behavior: 'smooth' })
   }, [])
+
+  // Enumerate audio input devices
+  const refreshDevices = useCallback(async () => {
+    try {
+      // Need permission first to get device labels
+      const tmpStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      tmpStream.getTracks().forEach(t => t.stop())
+      const devices = await navigator.mediaDevices.enumerateDevices()
+      const inputs = devices.filter(d => d.kind === 'audioinput')
+      setAudioDevices(inputs)
+      if (!selectedDeviceId && inputs.length > 0) {
+        setSelectedDeviceId(inputs[0].deviceId)
+      }
+    } catch (err) {
+      console.error('[Voice] Cannot enumerate devices:', err)
+    }
+  }, [selectedDeviceId])
+
+  // Auto-grow textarea
+  useEffect(() => {
+    const ta = textareaRef.current
+    if (!ta) return
+    ta.style.height = 'auto'
+    ta.style.height = Math.min(ta.scrollHeight, 160) + 'px'
+  }, [input])
 
   // Load history on open / session change
   useEffect(() => {
@@ -127,6 +210,7 @@ export default function AgentChat({ isOpen, onClose }) {
     if (!text || loading) return
 
     setInput('')
+    if (textareaRef.current) textareaRef.current.style.height = 'auto'
     setMessages(prev => [...prev, { role: 'user', content: text }])
     setLoading(true)
 
@@ -150,6 +234,80 @@ export default function AgentChat({ isOpen, onClose }) {
       e.preventDefault()
       handleSend()
     }
+  }
+
+  const handleStartRecording = async () => {
+    try {
+      const constraints = selectedDeviceId
+        ? { audio: { deviceId: { exact: selectedDeviceId } } }
+        : { audio: true }
+      const stream = await navigator.mediaDevices.getUserMedia(constraints)
+      setAudioStream(stream)
+
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm')
+          ? 'audio/webm'
+          : ''
+      const mediaRecorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream)
+      mediaRecorderRef.current = mediaRecorder
+      audioChunksRef.current = []
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data)
+      }
+
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop())
+        setAudioStream(null)
+
+        const blob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType })
+        if (blob.size === 0) return
+
+        setTranscribing(true)
+        try {
+          const ext = blob.type.includes('mp4') ? 'mp4' : 'webm'
+          const { url, key } = await api('voice.presign', { filename: `recording.${ext}` })
+
+          const putResp = await fetch(url, {
+            method: 'PUT',
+            headers: { 'Content-Type': blob.type },
+            body: blob
+          })
+          if (!putResp.ok) throw new Error(`S3 upload failed: ${putResp.status}`)
+
+          const result = await api('voice.transcribe', { key })
+
+          if (result.text && result.text.trim()) {
+            setInput(prev => prev ? prev + ' ' + result.text.trim() : result.text.trim())
+            textareaRef.current?.focus()
+          }
+        } catch (err) {
+          console.error('[Voice] Error:', err)
+        } finally {
+          setTranscribing(false)
+        }
+      }
+
+      mediaRecorder.start(250)
+      setRecording(true)
+    } catch (err) {
+      console.error('Microphone access denied:', err)
+    }
+  }
+
+  const handleStopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop()
+    }
+    setRecording(false)
+  }
+
+  const handleMicClick = () => {
+    if (recording) handleStopRecording()
+    else handleStartRecording()
   }
 
   const handleNewSession = () => {
@@ -256,6 +414,14 @@ export default function AgentChat({ isOpen, onClose }) {
         <div ref={messagesEnd} />
       </div>
 
+      {recording && (
+        <div className="voice-recording-bar">
+          <div className="voice-recording-dot" />
+          <VoiceWave stream={audioStream} />
+          <span className="voice-recording-label">Запис...</span>
+        </div>
+      )}
+
       <div className="agent-input-area">
         <textarea
           ref={textareaRef}
@@ -263,10 +429,42 @@ export default function AgentChat({ isOpen, onClose }) {
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={mode === 'production' ? 'Напр. Какви са текущите KPI?' : 'Напр. Колко свине-майки имаме?'}
-          disabled={loading}
+          placeholder={transcribing ? 'Разпознаване на глас...' : mode === 'production' ? 'Напр. Какви са текущите KPI?' : 'Напр. Колко свине-майки имаме?'}
+          disabled={loading || transcribing}
         />
-        <button onClick={handleSend} disabled={loading || !input.trim()}><Send size={16} /></button>
+        <div className="agent-mic-wrap">
+          <button
+            className={`agent-mic-btn ${recording ? 'recording' : ''}`}
+            onClick={handleMicClick}
+            disabled={loading || transcribing}
+            title={recording ? 'Спри записа' : 'Запиши глас'}
+          >
+            {recording ? <Square size={16} /> : <Mic size={16} />}
+          </button>
+          <button
+            className="agent-mic-picker-btn"
+            onClick={() => refreshDevices().then(() => setShowDevicePicker(p => !p))}
+            disabled={loading || transcribing || recording}
+            title="Избор на микрофон"
+          >
+            <ChevronUp size={10} />
+          </button>
+          {showDevicePicker && audioDevices.length > 0 && (
+            <div className="device-picker">
+              <div className="device-picker-title">Микрофон</div>
+              {audioDevices.map(d => (
+                <button
+                  key={d.deviceId}
+                  className={`device-picker-item ${d.deviceId === selectedDeviceId ? 'active' : ''}`}
+                  onClick={() => { setSelectedDeviceId(d.deviceId); setShowDevicePicker(false) }}
+                >
+                  {d.label || `Микрофон ${d.deviceId.slice(0, 5)}`}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <button onClick={handleSend} disabled={loading || !input.trim() || transcribing}><Send size={16} /></button>
       </div>
     </div>
   )

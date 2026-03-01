@@ -5,6 +5,7 @@
 import crypto from 'crypto';
 import { getDB } from './db.mjs';
 import { agentChat, agentHistory, agentSessions } from './agent/index.mjs';
+import { getOpenAIKey } from './agent/provider.mjs';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -340,6 +341,10 @@ export async function handler(event) {
     if (action === 'agent.chat') return ok(await agentChat(db, body));
     if (action === 'agent.history') return ok(await agentHistory(db, body));
     if (action === 'agent.sessions') return ok(await agentSessions(db, body));
+
+    // ─── Voice (Whisper) ────────────────────────────────────────────────
+    if (action === 'voice.presign') return ok(await voicePresign(db, body));
+    if (action === 'voice.transcribe') return ok(await voiceTranscribe(db, body));
 
     return err(400, `Unknown action: ${action}`);
   } catch (error) {
@@ -3787,11 +3792,11 @@ async function exportExcel(db, { report_type, params: reportParams }) {
     const fileName = `ajaxerp_${report_type}_${new Date().toISOString().split('T')[0]}.csv`;
 
     // Upload to S3 if available
-    const s3Bucket = process.env.OPENKBS_STORAGE_BUCKET;
+    const s3Bucket = process.env.STORAGE_BUCKET;
     if (s3Bucket) {
       const { S3Client, PutObjectCommand, GetObjectCommand } = await import('@aws-sdk/client-s3');
       const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner');
-      const s3 = new S3Client({ region: process.env.OPENKBS_REGION || 'eu-central-1' });
+      const s3 = new S3Client({ region: process.env.STORAGE_REGION || 'eu-central-1' });
       const key = `exports/${fileName}`;
       await s3.send(new PutObjectCommand({ Bucket: s3Bucket, Key: key, Body: csv, ContentType: 'text/csv; charset=utf-8' }));
       const url = await getSignedUrl(s3, new GetObjectCommand({ Bucket: s3Bucket, Key: key }), { expiresIn: 3600 });
@@ -5507,4 +5512,99 @@ async function settingsGetAll(db) {
   const settings = {};
   for (const row of result.rows) settings[row.key] = row.value;
   return { settings };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VOICE — Whisper transcription via S3 + OpenAI
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function voicePresign(db, { filename }) {
+  const s3Bucket = process.env.STORAGE_BUCKET;
+  if (!s3Bucket) throw new Error('S3 хранилище не е конфигурирано.');
+  if (!filename) throw new Error('filename е задължителен');
+
+  const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const key = `media/tmp/${Date.now()}_${safeName}`;
+
+  const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
+  const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner');
+  const s3 = new S3Client({ region: process.env.STORAGE_REGION || 'eu-central-1' });
+
+  const url = await getSignedUrl(
+    s3,
+    new PutObjectCommand({
+      Bucket: s3Bucket,
+      Key: key,
+      ContentType: 'audio/webm'
+    }),
+    { expiresIn: 300 }
+  );
+
+  return { url, key };
+}
+
+async function voiceTranscribe(db, { key }) {
+  if (!key) throw new Error('key е задължителен');
+  if (!key.startsWith('media/tmp/')) throw new Error('Невалиден ключ — трябва да е в media/tmp/ директория');
+
+  const s3Bucket = process.env.STORAGE_BUCKET;
+  if (!s3Bucket) throw new Error('S3 хранилище не е конфигурирано.');
+
+  // Download audio from S3
+  const { S3Client, GetObjectCommand, DeleteObjectCommand } = await import('@aws-sdk/client-s3');
+  const s3 = new S3Client({ region: process.env.STORAGE_REGION || 'eu-central-1' });
+  const s3Resp = await s3.send(new GetObjectCommand({ Bucket: s3Bucket, Key: key }));
+  const audioBuffer = Buffer.from(await s3Resp.Body.transformToByteArray());
+
+  // Get OpenAI key
+  const openaiKey = await getOpenAIKey(db);
+
+  // Build multipart form data for Whisper API
+  const boundary = '----FormBoundary' + Date.now();
+  const ext = key.split('.').pop() || 'webm';
+  const fname = `audio.${ext}`;
+
+  const parts = [];
+  parts.push(
+    `--${boundary}\r\n` +
+    `Content-Disposition: form-data; name="file"; filename="${fname}"\r\n` +
+    `Content-Type: audio/${ext}\r\n\r\n`
+  );
+  parts.push(audioBuffer);
+  parts.push(`\r\n`);
+  parts.push(
+    `--${boundary}\r\n` +
+    `Content-Disposition: form-data; name="model"\r\n\r\n` +
+    `whisper-1\r\n`
+  );
+  parts.push(
+    `--${boundary}\r\n` +
+    `Content-Disposition: form-data; name="language"\r\n\r\n` +
+    `bg\r\n`
+  );
+  parts.push(`--${boundary}--\r\n`);
+
+  const bodyParts = parts.map(p => typeof p === 'string' ? Buffer.from(p) : p);
+  const bodyBuffer = Buffer.concat(bodyParts);
+
+  const resp = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${openaiKey}`,
+      'Content-Type': `multipart/form-data; boundary=${boundary}`
+    },
+    body: bodyBuffer
+  });
+
+  if (!resp.ok) {
+    const errBody = await resp.text();
+    throw new Error(`Whisper API грешка (${resp.status}): ${errBody}`);
+  }
+
+  const result = await resp.json();
+
+  // Clean up tmp file (fire-and-forget)
+  s3.send(new DeleteObjectCommand({ Bucket: s3Bucket, Key: key })).catch(() => {});
+
+  return { text: result.text || '' };
 }
