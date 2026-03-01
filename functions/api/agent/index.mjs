@@ -147,3 +147,20 @@ export async function agentSessions(db, { personnel_id, limit }) {
 
   return { sessions: result.rows };
 }
+
+/**
+ * agentDeleteSession — delete a conversation session and all its messages
+ * @param {object} db - PostgreSQL client
+ * @param {object} params - { session_id, personnel_id }
+ */
+export async function agentDeleteSession(db, { session_id, personnel_id }) {
+  if (!session_id) throw new Error('session_id е задължителен');
+  if (!personnel_id) throw new Error('personnel_id е задължителен');
+
+  await db.query(
+    `DELETE FROM agent_conversations WHERE session_id = $1 AND personnel_id = $2`,
+    [session_id, personnel_id]
+  );
+
+  return { deleted: true };
+}

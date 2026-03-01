@@ -4,7 +4,7 @@
  */
 import crypto from 'crypto';
 import { getDB } from './db.mjs';
-import { agentChat, agentHistory, agentSessions } from './agent/index.mjs';
+import { agentChat, agentHistory, agentSessions, agentDeleteSession } from './agent/index.mjs';
 import { getOpenAIKey } from './agent/provider.mjs';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -343,6 +343,7 @@ export async function handler(event) {
     if (action === 'agent.chat') return ok(await agentChat(db, body));
     if (action === 'agent.history') return ok(await agentHistory(db, body));
     if (action === 'agent.sessions') return ok(await agentSessions(db, body));
+    if (action === 'agent.deleteSession') return ok(await agentDeleteSession(db, body));
 
     // ─── Voice (Whisper) ────────────────────────────────────────────────
     if (action === 'voice.presign') return ok(await voicePresign(db, body));

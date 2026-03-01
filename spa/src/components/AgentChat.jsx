@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { api } from '../api.js'
 import { useAuth } from '../AuthContext.jsx'
-import { Plus, Send, Mic, Square } from 'lucide-react'
+import { Plus, Send, Mic, Square, Trash2 } from 'lucide-react'
 import './AgentChat.css'
 
 const MODES = [
@@ -370,6 +370,18 @@ export default function AgentChat({ isOpen, onClose }) {
     setHistoryOpen(false)
   }
 
+  const handleDeleteSession = async (e, sid) => {
+    e.stopPropagation()
+    if (!confirm('Изтриване на този разговор?')) return
+    try {
+      await api('agent.deleteSession', { session_id: sid, personnel_id: user?.id })
+      setSessions(prev => prev.filter(s => s.session_id !== sid))
+      if (sid === sessionId) handleNewSession()
+    } catch (err) {
+      console.error('Delete session error:', err)
+    }
+  }
+
   if (!isOpen) return null
 
   return (
@@ -407,17 +419,26 @@ export default function AgentChat({ isOpen, onClose }) {
                   className={`agent-history-item ${s.session_id === sessionId ? 'active' : ''}`}
                   onClick={() => handleSelectSession(s.session_id)}
                 >
-                  <span className="agent-history-preview">
-                    {s.first_message
-                      ? (s.first_message.length > 60
-                          ? s.first_message.slice(0, 60) + '...'
-                          : s.first_message)
-                      : '(празен разговор)'}
-                  </span>
-                  <span className="agent-history-time">
-                    {new Date(s.started_at).toLocaleDateString('bg-BG', {
-                      day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
-                    })}
+                  <div className="agent-history-item-content">
+                    <span className="agent-history-preview">
+                      {s.first_message
+                        ? (s.first_message.length > 60
+                            ? s.first_message.slice(0, 60) + '...'
+                            : s.first_message)
+                        : '(празен разговор)'}
+                    </span>
+                    <span className="agent-history-time">
+                      {new Date(s.started_at).toLocaleDateString('bg-BG', {
+                        day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+                      })}
+                    </span>
+                  </div>
+                  <span
+                    className="agent-history-delete"
+                    onClick={(e) => handleDeleteSession(e, s.session_id)}
+                    title="Изтрий разговора"
+                  >
+                    <Trash2 size={14} />
                   </span>
                 </button>
               ))}
